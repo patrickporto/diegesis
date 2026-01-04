@@ -10,7 +10,7 @@ function App() {
     handleSignOutClick,
     syncWithDrive,
     lastSyncTime,
-  } = useGoogleDrive(doc);
+  } = useGoogleDrive();
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans">
