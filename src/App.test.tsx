@@ -18,13 +18,13 @@ Object.defineProperty(window, "matchMedia", {
   })),
 });
 
-// Mock environment variables
-vi.stubGlobal("import.meta", {
-  env: {
-    VITE_GOOGLE_CLIENT_ID: "mock-client-id",
-    VITE_GOOGLE_API_KEY: "mock-api-key",
-  },
-});
+// Mock Google OAuth to prevent script loading errors
+vi.mock("@react-oauth/google", () => ({
+  GoogleOAuthProvider: ({ children }: { children: React.ReactNode }) => (
+    <>{children}</>
+  ),
+  useGoogleLogin: () => vi.fn(),
+}));
 
 describe("App", () => {
   it("renders app title", () => {
