@@ -9,7 +9,7 @@ import { useGoogleDrive } from "@/hooks/useGoogleDrive";
 const CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 
 function AppContent() {
-  const { synced: indexedDbSynced } = useNotes();
+  const { synced: indexedDbSynced, doc } = useNotes();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const {
     isSignedIn,
@@ -19,7 +19,7 @@ function AppContent() {
     lastSyncTime,
     user,
     syncStatus,
-  } = useGoogleDrive();
+  } = useGoogleDrive(doc);
 
   const getSyncIcon = () => {
     switch (syncStatus) {
