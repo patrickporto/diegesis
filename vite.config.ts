@@ -30,5 +30,9 @@ export default defineConfig({
       provider: "v8",
       reporter: ["html", "lcov"],
     },
+    env: {
+      VITE_GOOGLE_CLIENT_ID: "mock-client-id",
+      VITE_GOOGLE_API_KEY: "mock-api-key",
+    },
   },
 });
