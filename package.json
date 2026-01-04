@@ -30,6 +30,14 @@
     "lint": "eslint --cache --fix ."
   },
   "dependencies": {
+    "@blocknote/core": "^0.45.0",
+    "@blocknote/mantine": "^0.45.0",
+    "@blocknote/react": "^0.45.0",
+    "@mantine/core": "^8.3.10",
+    "@mantine/hooks": "^8.3.10",
+    "@types/gapi": "^0.0.47",
+    "@types/gapi.client.drive": "^3.0.15",
+    "gapi-script": "^1.2.0",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
     "uuidv7": "^1.1.0",
