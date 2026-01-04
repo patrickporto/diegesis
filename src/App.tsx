@@ -3,13 +3,13 @@ import { useState } from "react";
 
 import { Editor } from "@/components/Editor";
 import { Sidebar } from "@/components/Sidebar";
+import { NotesProvider, useNotes } from "@/contexts/NotesContext";
 import { useGoogleDrive } from "@/hooks/useGoogleDrive";
-import { useYjs } from "@/hooks/useYjs";
 
 const CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 
 function AppContent() {
-  const { doc, synced: indexedDbSynced } = useYjs();
+  const { synced: indexedDbSynced } = useNotes();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const {
     isSignedIn,
@@ -273,7 +273,7 @@ function AppContent() {
       {/* Main Content */}
       <main className="max-w-4xl mx-auto py-12 px-4 sm:px-6">
         {indexedDbSynced ? (
-          <Editor doc={doc} />
+          <Editor />
         ) : (
           <div className="flex flex-col items-center justify-center h-[50vh] text-slate-400">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-sky-500 mb-4"></div>
@@ -293,7 +293,9 @@ function App() {
 
   return (
     <GoogleOAuthProvider clientId={CLIENT_ID}>
-      <AppContent />
+      <NotesProvider>
+        <AppContent />
+      </NotesProvider>
     </GoogleOAuthProvider>
   );
 }

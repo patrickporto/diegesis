@@ -1,5 +1,6 @@
 import { useState } from "react";
 
+import { useNotes } from "@/contexts/NotesContext";
 import { useGemini } from "@/hooks/useGemini";
 
 import { ChatInterface } from "./ChatInterface";
@@ -10,6 +11,7 @@ interface SidebarProps {
 }
 
 export function Sidebar({ isOpen, onClose }: SidebarProps) {
+  const { editor } = useNotes();
   const {
     messages,
     isLoading,
@@ -18,7 +20,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
     apiKey,
     setApiKey,
     hasApiKey,
-  } = useGemini();
+  } = useGemini(editor);
 
   const [showApiKeyInput, setShowApiKeyInput] = useState(!hasApiKey);
   const [tempApiKey, setTempApiKey] = useState(apiKey);
