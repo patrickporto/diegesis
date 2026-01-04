@@ -1,13 +1,24 @@
 /// <reference types="vitest" />
 
-import react from '@vitejs/plugin-react-swc';
+import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
 import tsconfigPaths from 'vite-tsconfig-paths';
+
+const reactCompilerConfig = {
+  /* ... */
+};
 
 // https://vitejs.dev/config/
 export default defineConfig({
   base: '/diegesis/',
-  plugins: [react(), tsconfigPaths()],
+  plugins: [
+    react({
+      babel: {
+        plugins: [['babel-plugin-react-compiler', reactCompilerConfig]],
+      },
+    }),
+    tsconfigPaths(),
+  ],
   build: {
     sourcemap: true,
   },
@@ -16,7 +27,7 @@ export default defineConfig({
     environment: 'happy-dom',
     setupFiles: './src/setupTests.ts',
     coverage: {
-      provider: 'c8',
+      provider: 'v8',
       reporter: ['html', 'lcov'],
     },
   },

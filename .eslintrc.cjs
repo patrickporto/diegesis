@@ -13,7 +13,7 @@ module.exports = {
     'plugin:react/jsx-runtime',
     'prettier',
   ],
-  plugins: ['react', 'prettier', 'unused-imports', 'simple-import-sort'],
+  plugins: ['react', 'prettier', 'unused-imports', 'simple-import-sort', 'react-compiler'],
   settings: {
     react: {
       version: 'detect',
@@ -30,5 +30,6 @@ module.exports = {
     'unused-imports/no-unused-imports': 'warn',
     'simple-import-sort/imports': 'warn',
     'simple-import-sort/exports': 'warn',
+    'react-compiler/react-compiler': 'error',
   },
 };
