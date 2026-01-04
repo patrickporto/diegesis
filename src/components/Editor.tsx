@@ -13,7 +13,7 @@ export const Editor = () => {
   }
 
   return (
-    <div className="w-full max-w-4xl mx-auto min-h-[500px] bg-white rounded-lg shadow-sm p-4">
+    <div className="w-full max-w-4xl mx-auto min-h-[500px] bg-white sm:rounded-lg sm:shadow-sm p-0 sm:p-4">
       <BlockNoteView editor={editor} theme="light" />
     </div>
   );

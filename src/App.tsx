@@ -271,7 +271,7 @@ function AppContent() {
       </header>
 
       {/* Main Content */}
-      <main className="max-w-4xl mx-auto py-12 px-4 sm:px-6">
+      <main className="max-w-4xl mx-auto py-2 px-0 sm:px-6 sm:py-12">
         {indexedDbSynced ? (
           <Editor />
         ) : (
