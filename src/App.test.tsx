@@ -18,6 +18,14 @@ Object.defineProperty(window, "matchMedia", {
   })),
 });
 
+// Mock environment variables
+vi.stubGlobal("import.meta", {
+  env: {
+    VITE_GOOGLE_CLIENT_ID: "mock-client-id",
+    VITE_GOOGLE_API_KEY: "mock-api-key",
+  },
+});
+
 describe("App", () => {
   it("renders app title", () => {
     render(<App />);
