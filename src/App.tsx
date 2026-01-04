@@ -1,6 +1,8 @@
 import { GoogleOAuthProvider } from "@react-oauth/google";
+import { useState } from "react";
 
 import { Editor } from "@/components/Editor";
+import { Sidebar } from "@/components/Sidebar";
 import { useGoogleDrive } from "@/hooks/useGoogleDrive";
 import { useYjs } from "@/hooks/useYjs";
 
@@ -8,6 +10,7 @@ const CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 
 function AppContent() {
   const { doc, synced: indexedDbSynced } = useYjs();
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const {
     isSignedIn,
     handleAuthClick,
@@ -244,6 +247,25 @@ function AppContent() {
                 <span className="sm:hidden">Login</span>
               </button>
             )}
+
+            <button
+              onClick={() => setIsSidebarOpen(true)}
+              className="p-2 text-slate-500 hover:bg-slate-100 rounded-xl transition-colors relative"
+              title="Open Assistant"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                fill="currentColor"
+                className="w-6 h-6"
+              >
+                <path
+                  fillRule="evenodd"
+                  d="M9 4.5a.75.75 0 01.721.544l.813 2.846a3.75 3.75 0 002.576 2.576l2.846.813a.75.75 0 010 1.442l-2.846.813a3.75 3.75 0 00-2.576 2.576l-.813 2.846a.75.75 0 01-1.442 0l-.813-2.846a3.75 3.75 0 00-2.576-2.576l-2.846-.813a.75.75 0 010-1.442l2.846-.813a3.75 3.75 0 002.576-2.576l.813-2.846A.75.75 0 019 4.5zM6.97 6.97a.75.75 0 011.06 0l.44.44a.75.75 0 11-1.06 1.06l-.44-.44a.75.75 0 010-1.06zm9.54 0a.75.75 0 011.06 0l.44.44a.75.75 0 11-1.06 1.06l-.44-.44a.75.75 0 010-1.06z"
+                  clipRule="evenodd"
+                />
+              </svg>
+            </button>
           </div>
         </div>
       </header>
@@ -259,6 +281,7 @@ function AppContent() {
           </div>
         )}
       </main>
+      <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
     </div>
   );
 }

@@ -169,5 +169,6 @@ export const useGoogleDrive = () => {
     syncWithDrive,
     lastSyncTime,
     syncStatus,
+    accessToken,
   };
 };
