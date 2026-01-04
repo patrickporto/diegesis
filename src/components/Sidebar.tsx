@@ -42,7 +42,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
 
       {/* Sidebar Panel */}
       <div
-        className={`fixed top-0 right-0 h-full w-[85vw] md:w-[350px] bg-white shadow-2xl z-50 transform transition-transform duration-300 ease-out border-l border-slate-200 ${
+        className={`fixed top-0 right-0 h-full w-[85vw] md:w-[350px] bg-white shadow-2xl z-50 transform transition-transform duration-300 ease-out border-l border-slate-200 flex flex-col ${
           isOpen ? "translate-x-0" : "translate-x-full"
         }`}
       >
@@ -180,11 +180,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
         )}
 
         {/* Content */}
-        <div
-          className={`h-[calc(100%-${
-            showApiKeyInput ? "10.5rem" : hasApiKey ? "7rem" : "3.5rem"
-          })]`}
-        >
+        <div className="flex-1 min-h-0 relative">
           <ChatInterface
             messages={messages}
             isLoading={isLoading}

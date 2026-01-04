@@ -11,7 +11,6 @@ export const useYjs = () => {
     const indexeddbProvider = new IndexeddbPersistence("diegesis-notes", doc);
 
     indexeddbProvider.on("synced", () => {
-      console.log("IndexedDB content loaded");
       setSynced(true);
     });
 

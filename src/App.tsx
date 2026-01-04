@@ -287,8 +287,6 @@ function AppContent() {
 }
 
 function App() {
-  console.log("CLIENT_ID:", CLIENT_ID);
-
   if (!CLIENT_ID) {
     return <div>Missing VITE_GOOGLE_CLIENT_ID</div>;
   }
