@@ -1,8 +1,12 @@
+import { GoogleOAuthProvider } from "@react-oauth/google";
+
 import { Editor } from "@/components/Editor";
 import { useGoogleDrive } from "@/hooks/useGoogleDrive";
 import { useYjs } from "@/hooks/useYjs";
 
-function App() {
+const CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+
+function AppContent() {
   const { doc, synced: indexedDbSynced } = useYjs();
   const {
     isSignedIn,
@@ -185,7 +189,6 @@ function App() {
                     </div>
                   )}
 
-                  {/* Tooltip / Sign out overlay on hover */}
                   <div className="absolute right-0 top-full mt-2 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
                     <div className="bg-white border border-slate-200 shadow-xl rounded-xl p-2 min-w-[140px]">
                       <div className="px-3 py-2 border-b border-slate-50 md:hidden">
@@ -257,6 +260,20 @@ function App() {
         )}
       </main>
     </div>
+  );
+}
+
+function App() {
+  console.log("CLIENT_ID:", CLIENT_ID);
+
+  if (!CLIENT_ID) {
+    return <div>Missing VITE_GOOGLE_CLIENT_ID</div>;
+  }
+
+  return (
+    <GoogleOAuthProvider clientId={CLIENT_ID}>
+      <AppContent />
+    </GoogleOAuthProvider>
   );
 }
 
