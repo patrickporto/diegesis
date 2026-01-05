@@ -8,54 +8,6 @@ interface ChatInterfaceProps {
   onSendMessage: (text: string) => void;
 }
 
-function QuotaError({ initialSeconds }: { initialSeconds: number }) {
-  const [timeLeft, setTimeLeft] = useState(initialSeconds);
-
-  useEffect(() => {
-    if (timeLeft <= 0) return;
-    const interval = setInterval(() => {
-      setTimeLeft((prev) => Math.max(0, prev - 1));
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [timeLeft]);
-
-  return (
-    <div className="flex justify-start">
-      <div className="max-w-[85%] bg-amber-50 text-amber-900 border border-amber-200 rounded-2xl p-4 shadow-sm text-sm">
-        <div className="flex items-start gap-3">
-          <svg
-            className="w-5 h-5 text-amber-50 shrink-0 mt-0.5"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-            />
-          </svg>
-          <div>
-            <h4 className="font-bold mb-1">Rate Limit Reached</h4>
-            <p className="mb-2 text-amber-800">
-              You&apos;ve hit the free tier limit for Gemini. Please wait a
-              moment before sending more messages.
-            </p>
-            <div className="font-mono bg-white/50 px-2 py-1 rounded inline-block text-amber-700 font-bold border border-amber-100">
-              {timeLeft > 0 ? (
-                <>Try again in {Math.ceil(timeLeft)}s</>
-              ) : (
-                <>Ready to retry!</>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 // Helper to parse thinking blocks
 function ThinkingBlock({ text }: { text: string }) {
   // Split by thinking tag
@@ -101,6 +53,50 @@ function ThinkingBlock({ text }: { text: string }) {
   );
 }
 
+function QuotaBanner({ initialSeconds }: { initialSeconds: number }) {
+  const [timeLeft, setTimeLeft] = useState(initialSeconds);
+
+  useEffect(() => {
+    if (timeLeft <= 0) return;
+    const interval = setInterval(() => {
+      setTimeLeft((prev) => Math.max(0, prev - 1));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [timeLeft]);
+
+  return (
+    <div className="bg-amber-50 border-t border-amber-200 p-3 shadow-inner">
+      <div className="flex items-center justify-between gap-3 text-sm">
+        <div className="flex items-center gap-2 text-amber-900">
+          <svg
+            className="w-5 h-5 text-amber-500 shrink-0"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+            />
+          </svg>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:gap-2">
+            <span className="font-bold">Rate Limit Reached</span>
+            <span className="hidden sm:inline text-amber-300">|</span>
+            <span className="text-amber-800">
+              Please wait before sending more messages.
+            </span>
+          </div>
+        </div>
+        <div className="font-mono bg-white px-3 py-1 rounded text-amber-700 font-bold border border-amber-200 text-xs shrink-0">
+          {timeLeft > 0 ? <>Retry in {Math.ceil(timeLeft)}s</> : <>Ready!</>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function ChatInterface({
   messages,
   isLoading,
@@ -124,6 +120,20 @@ export function ChatInterface({
     setInput("");
   };
 
+  // Find latest quota error
+  let latestQuotaErrorSeconds: number | null = null;
+  // Iterate backwards to find the most recent error
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const msg = messages[i];
+    if (msg.text.includes("Quota exceeded")) {
+      const retryMatch = msg.text.match(/retry in (\d+(\.\d+)?)s/);
+      if (retryMatch) {
+        latestQuotaErrorSeconds = parseFloat(retryMatch[1]);
+        break; // Found the latest one
+      }
+    }
+  }
+
   return (
     <div className="flex flex-col h-full bg-white">
       {/* Messages Area */}
@@ -137,12 +147,9 @@ export function ChatInterface({
 
         {messages.map((msg) => {
           const isQuotaError = msg.text.includes("Quota exceeded");
-          const retryMatch = msg.text.match(/retry in (\d+(\.\d+)?)s/);
-          const secondsToWait = retryMatch ? parseFloat(retryMatch[1]) : null;
-
-          if (isQuotaError && secondsToWait) {
-            return <QuotaError key={msg.id} initialSeconds={secondsToWait} />;
-          }
+          // We intentionally skip rendering quota errors in the message list now
+          // as they will be shown in the banner.
+          if (isQuotaError) return null;
 
           return (
             <div
@@ -185,6 +192,14 @@ export function ChatInterface({
         )}
         <div ref={messagesEndRef} />
       </div>
+
+      {/* Quota Banner (if active) */}
+      {latestQuotaErrorSeconds !== null && (
+        <QuotaBanner
+          key={latestQuotaErrorSeconds} // Reset timer if new error comes
+          initialSeconds={latestQuotaErrorSeconds}
+        />
+      )}
 
       {/* Input Area */}
       <div className="p-4 border-t border-slate-200 bg-slate-50">
