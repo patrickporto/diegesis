@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 
-import { Message } from "@/hooks/useGemini";
+import { Message } from "@/hooks/useOpenRouter";
 
 interface ChatInterfaceProps {
   messages: Message[];

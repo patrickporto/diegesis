@@ -259,3 +259,170 @@ export async function executeTool(
     return `Error executing ${functionName}: ${(err as Error).message}`;
   }
 }
+
+// OpenRouter/OpenAI compatible tools format
+export const OPENROUTER_TOOLS = [
+  {
+    type: "function",
+    function: {
+      name: "insert_note_content",
+      description:
+        "Appends new content to the end of the document. Use this to take notes, write summaries, or add information.",
+      parameters: {
+        type: "object",
+        properties: {
+          content: {
+            type: "string",
+            description: "The content to insert. Supports markdown.",
+          },
+        },
+        required: ["content"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "read_document",
+      description:
+        "Reads the current content of the document to understand context.",
+      parameters: {
+        type: "object",
+        properties: {},
+        required: [],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "clear_document",
+      description: "Clears all content from the document. Use with caution.",
+      parameters: {
+        type: "object",
+        properties: {},
+        required: [],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "create_file",
+      description: "Creates a new file (note) in the file system.",
+      parameters: {
+        type: "object",
+        properties: {
+          name: {
+            type: "string",
+            description: "The name of the file to create.",
+          },
+          parentId: {
+            type: "string",
+            description:
+              "Optional ID of the parent folder. If not provided, creates in root.",
+          },
+        },
+        required: ["name"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "create_folder",
+      description: "Creates a new folder in the file system.",
+      parameters: {
+        type: "object",
+        properties: {
+          name: {
+            type: "string",
+            description: "The name of the folder to create.",
+          },
+          parentId: {
+            type: "string",
+            description:
+              "Optional ID of the parent folder. If not provided, creates in root.",
+          },
+        },
+        required: ["name"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "rename_item",
+      description: "Renames an existing file or folder.",
+      parameters: {
+        type: "object",
+        properties: {
+          id: {
+            type: "string",
+            description: "The ID of the file or folder to rename.",
+          },
+          newName: {
+            type: "string",
+            description: "The new name for the item.",
+          },
+        },
+        required: ["id", "newName"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "delete_item",
+      description:
+        "Deletes a file or folder. Warning: This action is irreversible.",
+      parameters: {
+        type: "object",
+        properties: {
+          id: {
+            type: "string",
+            description: "The ID of the file or folder to delete.",
+          },
+        },
+        required: ["id"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "move_item",
+      description: "Moves a file or folder to a new parent folder.",
+      parameters: {
+        type: "object",
+        properties: {
+          id: {
+            type: "string",
+            description: "The ID of the file or folder to move.",
+          },
+          newParentId: {
+            type: "string",
+            description:
+              "The ID of the new parent folder. Use null to move to root.",
+          },
+        },
+        required: ["id", "newParentId"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "list_files",
+      description: "Lists all files and folders in the file system.",
+      parameters: {
+        type: "object",
+        properties: {},
+        required: [],
+      },
+    },
+  },
+];
+
+// Reuse the same execution logic for OpenRouter
+export const executeOpenRouterTool = executeTool;

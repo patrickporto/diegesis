@@ -1,7 +1,7 @@
 import { useState } from "react";
 
 import { useNotes } from "@/contexts/NotesContext";
-import { useGemini } from "@/hooks/useGemini";
+import { useOpenRouter } from "@/hooks/useOpenRouter";
 
 import { ChatInterface } from "./ChatInterface";
 
@@ -20,7 +20,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
     apiKey,
     setApiKey,
     hasApiKey,
-  } = useGemini(editor);
+  } = useOpenRouter(editor);
 
   const [showApiKeyInput, setShowApiKeyInput] = useState(!hasApiKey);
   const [tempApiKey, setTempApiKey] = useState(apiKey);
@@ -51,7 +51,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
         {/* Header */}
         <div className="h-14 border-b border-slate-200 flex items-center justify-between px-4 bg-slate-50/50">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white">
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-white">
               <svg
                 xmlns="http://www.w3.org/2000/svg"
                 viewBox="0 0 24 24"
@@ -65,7 +65,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
                 />
               </svg>
             </div>
-            <span className="font-bold text-slate-700">Gemini</span>
+            <span className="font-bold text-slate-700">OpenRouter</span>
           </div>
           <div className="flex items-center gap-1">
             <button
@@ -131,16 +131,16 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
 
         {/* API Key Input */}
         {showApiKeyInput && (
-          <div className="px-4 py-3 border-b border-slate-100 bg-amber-50/50">
+          <div className="px-4 py-3 border-b border-slate-100 bg-emerald-50/50">
             <div className="text-xs font-medium text-slate-600 mb-2">
-              Gemini API Key
+              OpenRouter API Key
               <a
-                href="https://aistudio.google.com/app/apikey"
+                href="https://openrouter.ai/keys"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-sky-500 hover:underline ml-2"
+                className="text-emerald-500 hover:underline ml-2"
               >
-                Get one free →
+                Get one →
               </a>
             </div>
             <div className="flex gap-2">
@@ -148,12 +148,12 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
                 type="password"
                 value={tempApiKey}
                 onChange={(e) => setTempApiKey(e.target.value)}
-                placeholder="AIza..."
-                className="flex-1 px-3 py-1.5 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500/50"
+                placeholder="sk-or-v1-..."
+                className="flex-1 px-3 py-1.5 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
               />
               <button
                 onClick={handleSaveApiKey}
-                className="px-3 py-1.5 text-xs font-medium bg-sky-500 text-white rounded-lg hover:bg-sky-600 transition-colors"
+                className="px-3 py-1.5 text-xs font-medium bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 transition-colors"
               >
                 Save
               </button>
@@ -172,11 +172,11 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
           </div>
         )}
 
-        {/* Model Selector - Hidden as requested */}
+        {/* Model Selector */}
         {hasApiKey && (
           <div className="px-4 py-2 border-b border-slate-100 bg-slate-50/30">
             <div className="text-[10px] text-slate-400 text-center">
-              Using Gemini 2.5 Flash
+              Using Gemini 2.0 Flash (Free)
             </div>
           </div>
         )}
