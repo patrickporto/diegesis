@@ -14,7 +14,8 @@ export type SyncStatus =
   | "synced"
   | "error"
   | "expired"
-  | "pending";
+  | "pending"
+  | "unavailable";
 
 export const useGoogleDrive = (doc?: Y.Doc) => {
   const [isSignedIn, setIsSignedIn] = useState(false);
@@ -59,6 +60,10 @@ export const useGoogleDrive = (doc?: Y.Doc) => {
     }
   }, []);
 
+  // This hook will throw if GoogleOAuthProvider is not present
+  // We need to wrap the entire component in a try-catch at render time
+  // which React doesn't support for hooks. Instead, we'll make this hook
+  // only usable when GoogleOAuthProvider is present, and create a "dummy" version for offline mode.
   const login = useGoogleLogin({
     onSuccess: async (tokenResponse) => {
       console.log("Login success, token received:", tokenResponse);

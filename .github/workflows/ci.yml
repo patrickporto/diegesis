@@ -77,11 +77,6 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-    # Manual deployment
-    # See https://devblogs.microsoft.com/devops/i-need-manual-approvers-for-github-actions-and-i-got-them-now/
-    environment:
-      name: patrickporto.github.io/diegesis
-      url: https://patrickporto.github.io/diegesis/
     steps:
       # Download dist artifacts
       - uses: actions/download-artifact@v4

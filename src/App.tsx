@@ -291,8 +291,15 @@ function MainLayout() {
 }
 
 function App() {
+  // If no CLIENT_ID, run in offline-only mode (no Google Drive sync)
   if (!CLIENT_ID) {
-    return <div>Missing VITE_GOOGLE_CLIENT_ID</div>;
+    return (
+      <NotesProvider>
+        <FileSystemProvider>
+          <MainLayout />
+        </FileSystemProvider>
+      </NotesProvider>
+    );
   }
 
   return (
