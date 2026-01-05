@@ -198,7 +198,7 @@ export async function executeTool(
       case "create_file": {
         if (!fileSystem)
           return "Error: File system not available for this tool.";
-        const { name, parentId } = args;
+        const { name, parentId } = args as { name: string; parentId?: string };
         const id = fileSystem.createFile(name, parentId || null);
         // Automatically open the new file if possible?
         if (id && fileSystem.setActiveFileId) {
@@ -210,7 +210,7 @@ export async function executeTool(
       case "create_folder": {
         if (!fileSystem)
           return "Error: File system not available for this tool.";
-        const { name, parentId } = args;
+        const { name, parentId } = args as { name: string; parentId?: string };
         const id = fileSystem.createFolder(name, parentId || null);
         return `Folder created with ID: ${id}`;
       }
@@ -218,7 +218,7 @@ export async function executeTool(
       case "rename_item": {
         if (!fileSystem)
           return "Error: File system not available for this tool.";
-        const { id, newName } = args;
+        const { id, newName } = args as { id: string; newName: string };
         fileSystem.renameItem(id, newName);
         return `Item renamed to: ${newName}`;
       }
@@ -226,15 +226,18 @@ export async function executeTool(
       case "move_item": {
         if (!fileSystem)
           return "Error: File system not available for this tool.";
-        const { id, newParentId } = args;
-        fileSystem.moveItem(id, newParentId as string | null);
+        const { id, newParentId } = args as {
+          id: string;
+          newParentId: string | null;
+        };
+        fileSystem.moveItem(id, newParentId);
         return `Item moved to parent: ${newParentId}`;
       }
 
       case "delete_item": {
         if (!fileSystem)
           return "Error: File system not available for this tool.";
-        const { id } = args;
+        const { id } = args as { id: string };
         fileSystem.deleteItem(id);
         return `Item deleted: ${id}`;
       }
@@ -243,8 +246,7 @@ export async function executeTool(
         if (!fileSystem)
           return "Error: File system not available for this tool.";
         const files = fileSystem.fileTree.map(
-          (f: { id: string; name: string; type: string; parentId: string }) =>
-            `- [${f.type}] ${f.name} (ID: ${f.id}, Parent: ${f.parentId})`
+          (f) => `- [${f.type}] ${f.name} (ID: ${f.id}, Parent: ${f.parentId})`
         );
         return `Files in system:\n${files.join("\n")}`;
       }

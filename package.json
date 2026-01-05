@@ -39,6 +39,9 @@
     "@mantine/hooks": "^8.3.10",
     "@mlc-ai/web-llm": "^0.2.80",
     "@react-oauth/google": "^0.13.4",
+    "@tiptap/core": "^3.14.0",
+    "@tiptap/extension-gapcursor": "^3.14.0",
+    "@tiptap/starter-kit": "^3.14.0",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
     "uuidv7": "^1.1.0",
@@ -79,6 +82,7 @@
     "tailwindcss": "^4.1.18",
     "typescript": "^5.0.4",
     "vite": "^7.3.0",
+    "vite-plugin-pwa": "^1.2.0",
     "vite-tsconfig-paths": "^6.0.3",
     "vitest": "^4.0.16"
   }

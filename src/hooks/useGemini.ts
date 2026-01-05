@@ -170,7 +170,8 @@ export function useGemini(editor?: BlockNoteEditor | null) {
 
             currentTurnMessages.push({
               role: "model",
-              parts: [functionCallPart], // keeping structure compatible with API input
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              parts: [functionCallPart as any], // keeping structure compatible with API input
             });
 
             let result = "Error: Editor not connected.";
@@ -187,7 +188,8 @@ export function useGemini(editor?: BlockNoteEditor | null) {
                     name: name,
                     response: { name: name, content: result },
                   },
-                },
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                } as any,
               ],
             });
 

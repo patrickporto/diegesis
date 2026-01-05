@@ -38,7 +38,7 @@ export const DEFAULT_TAGS: TagDefinition[] = [
   { color: "#64748b", name: "Gray" },
 ];
 
-interface FileSystemContextType {
+export interface FileSystemContextType {
   fileMap: Y.Map<FileNode>;
   fileTree: FileNode[];
   tagDefs: TagDefinition[];

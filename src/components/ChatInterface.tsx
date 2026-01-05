@@ -22,7 +22,7 @@ function ThinkingBlock({ text }: { text: string }) {
             <details
               key={index}
               className="mb-2 group"
-              open={process.env.NODE_ENV === "development"}
+              open={import.meta.env.DEV}
             >
               <summary className="text-xs font-medium text-slate-500 cursor-pointer select-none list-none flex items-center gap-1 hover:text-slate-700">
                 <svg

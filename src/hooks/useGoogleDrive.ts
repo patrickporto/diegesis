@@ -108,7 +108,7 @@ export const useGoogleDrive = (doc?: Y.Doc) => {
       setSyncStatus("syncing");
       try {
         const update = Y.encodeStateAsUpdate(currentDoc);
-        const blob = new Blob([update], {
+        const blob = new Blob([update.buffer as ArrayBuffer], {
           type: "application/octet-stream",
         });
 
@@ -228,7 +228,7 @@ export const useGoogleDrive = (doc?: Y.Doc) => {
         };
 
         const update = Y.encodeStateAsUpdate(doc);
-        const blob = new Blob([update], {
+        const blob = new Blob([update.buffer as ArrayBuffer], {
           type: "application/octet-stream",
         });
 

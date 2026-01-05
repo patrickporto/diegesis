@@ -54,7 +54,8 @@ function ActiveEditor({
         name: "User",
         color: "#" + Math.floor(Math.random() * 16777215).toString(16),
       },
-      provider: provider,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      provider: (provider ?? undefined) as any,
     },
   });
 
