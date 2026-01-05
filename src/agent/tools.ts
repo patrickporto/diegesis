@@ -245,9 +245,17 @@ export async function executeTool(
       case "list_files": {
         if (!fileSystem)
           return "Error: File system not available for this tool.";
-        const files = fileSystem.fileTree.map(
-          (f) => `- [${f.type}] ${f.name} (ID: ${f.id}, Parent: ${f.parentId})`
-        );
+        const files: string[] = [];
+        fileSystem.fileMap.forEach((f) => {
+          files.push(
+            `- [${f.type}] ${f.name} (ID: ${f.id}, Parent: ${
+              f.parentId || "root"
+            })`
+          );
+        });
+        if (files.length === 0) {
+          return "No files or folders in the system. The file system is empty.";
+        }
         return `Files in system:\n${files.join("\n")}`;
       }
 

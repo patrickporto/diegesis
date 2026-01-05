@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import Markdown from "react-markdown";
 
 import { Message } from "@/hooks/useOpenRouter";
 
@@ -8,7 +9,7 @@ interface ChatInterfaceProps {
   onSendMessage: (text: string) => void;
 }
 
-// Helper to parse thinking blocks
+// Helper to parse thinking blocks and render markdown
 function ThinkingBlock({ text }: { text: string }) {
   // Split by thinking tag
   const parts = text.split(/(<thinking>[\s\S]*?<\/thinking>)/g);
@@ -47,7 +48,12 @@ function ThinkingBlock({ text }: { text: string }) {
           );
         }
         if (!part.trim()) return null;
-        return <span key={index}>{part}</span>;
+        // Render other content as markdown
+        return (
+          <div key={index} className="prose prose-sm prose-slate max-w-none">
+            <Markdown>{part}</Markdown>
+          </div>
+        );
       })}
     </>
   );
@@ -120,17 +126,24 @@ export function ChatInterface({
     setInput("");
   };
 
-  // Find latest quota error
+  // Find latest rate limit error (supports various formats)
   let latestQuotaErrorSeconds: number | null = null;
   // Iterate backwards to find the most recent error
   for (let i = messages.length - 1; i >= 0; i--) {
     const msg = messages[i];
-    if (msg.text.includes("Quota exceeded")) {
-      const retryMatch = msg.text.match(/retry in (\d+(\.\d+)?)s/);
-      if (retryMatch) {
-        latestQuotaErrorSeconds = parseFloat(retryMatch[1]);
-        break; // Found the latest one
-      }
+    const isRateLimitError =
+      msg.text.includes("Quota exceeded") ||
+      msg.text.includes("rate limit") ||
+      msg.text.includes("Rate limit") ||
+      msg.text.includes("429") ||
+      msg.text.includes("Too Many Requests") ||
+      msg.text.includes("Provider returned error");
+
+    if (isRateLimitError && msg.role === "assistant") {
+      // Try to extract retry time, default to 30 seconds if not found
+      const retryMatch = msg.text.match(/retry in (\d+(\.\d+)?)s/i);
+      latestQuotaErrorSeconds = retryMatch ? parseFloat(retryMatch[1]) : 30;
+      break;
     }
   }
 

@@ -49,30 +49,6 @@ interface OpenRouterMessage {
   name?: string;
 }
 
-interface OpenRouterChoice {
-  message: {
-    role: string;
-    content: string | null;
-    tool_calls?: Array<{
-      id: string;
-      type: "function";
-      function: {
-        name: string;
-        arguments: string;
-      };
-    }>;
-  };
-  finish_reason: string;
-}
-
-interface OpenRouterResponse {
-  choices?: OpenRouterChoice[];
-  error?: {
-    message?: string;
-    code?: number;
-  };
-}
-
 export function useOpenRouter(editor?: BlockNoteEditor | null) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -134,9 +110,11 @@ export function useOpenRouter(editor?: BlockNoteEditor | null) {
             model: string;
             messages: OpenRouterMessage[];
             tools?: unknown[];
+            stream?: boolean;
           } = {
             model: DEFAULT_MODEL,
             messages: openRouterMessages,
+            stream: true,
           };
 
           // Only add tools if editor is available
@@ -165,25 +143,111 @@ export function useOpenRouter(editor?: BlockNoteEditor | null) {
             );
           }
 
-          const data = (await response.json()) as OpenRouterResponse;
-          const choice = data.choices?.[0];
-          const message = choice?.message;
-
-          if (!message) {
-            throw new Error("No response from model");
+          // Process streaming response
+          const reader = response.body?.getReader();
+          if (!reader) {
+            throw new Error("No response body");
           }
 
-          // Check for tool calls (OpenAI format)
-          if (message.tool_calls && message.tool_calls.length > 0) {
-            // Add assistant message with tool calls
+          const decoder = new TextDecoder();
+          let accumulatedContent = "";
+          const toolCalls: Array<{
+            id: string;
+            type: "function";
+            function: { name: string; arguments: string };
+          }> = [];
+          const streamingMessageId = uuidv7();
+          let hasAddedMessage = false;
+
+          let streamDone = false;
+          // eslint-disable-next-line no-constant-condition
+          while (!streamDone) {
+            const { done, value } = await reader.read();
+            if (done) {
+              streamDone = true;
+              break;
+            }
+
+            const chunk = decoder.decode(value, { stream: true });
+            const lines = chunk.split("\n");
+
+            for (const line of lines) {
+              if (line.startsWith("data: ")) {
+                const data = line.slice(6);
+                if (data === "[DONE]") continue;
+
+                try {
+                  const parsed = JSON.parse(data);
+                  const delta = parsed.choices?.[0]?.delta;
+
+                  if (delta?.content) {
+                    accumulatedContent += delta.content;
+
+                    // Update message in real-time
+                    if (!hasAddedMessage) {
+                      setMessages((prev) => [
+                        ...prev,
+                        {
+                          id: streamingMessageId,
+                          role: "assistant",
+                          text: accumulatedContent,
+                          timestamp: new Date(),
+                        },
+                      ]);
+                      hasAddedMessage = true;
+                    } else {
+                      setMessages((prev) =>
+                        prev.map((m) =>
+                          m.id === streamingMessageId
+                            ? { ...m, text: accumulatedContent }
+                            : m
+                        )
+                      );
+                    }
+                  }
+
+                  // Collect tool calls
+                  if (delta?.tool_calls) {
+                    for (const tc of delta.tool_calls) {
+                      const index = tc.index ?? 0;
+                      if (!toolCalls[index]) {
+                        toolCalls[index] = {
+                          id: tc.id || "",
+                          type: "function",
+                          function: { name: "", arguments: "" },
+                        };
+                      }
+                      if (tc.id) toolCalls[index].id = tc.id;
+                      if (tc.function?.name)
+                        toolCalls[index].function.name += tc.function.name;
+                      if (tc.function?.arguments)
+                        toolCalls[index].function.arguments +=
+                          tc.function.arguments;
+                    }
+                  }
+                } catch {
+                  // Ignore parse errors for incomplete chunks
+                }
+              }
+            }
+          }
+
+          // Handle tool calls (OpenAI format)
+          if (toolCalls.length > 0 && toolCalls[0]?.function?.name) {
             openRouterMessages.push({
               role: "assistant",
-              content: message.content || "",
-              tool_calls: message.tool_calls,
+              content: accumulatedContent,
+              tool_calls: toolCalls,
             });
 
-            // Process each tool call
-            for (const toolCall of message.tool_calls) {
+            // Remove the streaming message since we're continuing
+            if (hasAddedMessage) {
+              setMessages((prev) =>
+                prev.filter((m) => m.id !== streamingMessageId)
+              );
+            }
+
+            for (const toolCall of toolCalls) {
               const functionName = toolCall.function.name;
               let args: Record<string, unknown> = {};
               try {
@@ -202,7 +266,6 @@ export function useOpenRouter(editor?: BlockNoteEditor | null) {
                 );
               }
 
-              // Add tool response
               openRouterMessages.push({
                 role: "tool",
                 content: result,
@@ -211,16 +274,14 @@ export function useOpenRouter(editor?: BlockNoteEditor | null) {
               });
             }
 
-            // Continue loop to get final response
             continue;
           }
 
           // Fallback: Parse XML-style tool calls (for models like GLM)
-          const responseContent = message.content || "";
+          const responseContent = accumulatedContent;
           const xmlToolRegex = /<(\w+)(?:\s+([^>]*))?>(?:([\s\S]*?)<\/\1>)?/g;
           const xmlToolMatches = [...responseContent.matchAll(xmlToolRegex)];
 
-          // Known tool names to look for
           const knownTools = [
             "insert_note_content",
             "read_document",
@@ -238,17 +299,21 @@ export function useOpenRouter(editor?: BlockNoteEditor | null) {
           );
 
           if (foundXmlTools.length > 0) {
-            // Execute XML-style tool calls
+            // Remove streaming message
+            if (hasAddedMessage) {
+              setMessages((prev) =>
+                prev.filter((m) => m.id !== streamingMessageId)
+              );
+            }
+
             const toolResults: string[] = [];
 
             for (const toolMatch of foundXmlTools) {
               const toolName = toolMatch[1];
               const toolContent = toolMatch[3] || "";
 
-              // Parse arguments from content or attributes
               let args: Record<string, unknown> = {};
               if (toolContent.trim()) {
-                // Try to parse as JSON or use as content
                 try {
                   args = JSON.parse(toolContent);
                 } catch {
@@ -268,7 +333,6 @@ export function useOpenRouter(editor?: BlockNoteEditor | null) {
               toolResults.push(`[${toolName}]: ${result}`);
             }
 
-            // Add the tool results to the message and continue
             openRouterMessages.push({
               role: "assistant",
               content: responseContent,
@@ -283,18 +347,7 @@ export function useOpenRouter(editor?: BlockNoteEditor | null) {
 
             continue;
           } else {
-            // No tool calls, final response
-            const responseText =
-              message.content || "I couldn't generate a response.";
-
-            const responseMessage: Message = {
-              id: uuidv7(),
-              role: "assistant",
-              text: responseText,
-              timestamp: new Date(),
-            };
-
-            setMessages((prev) => [...prev, responseMessage]);
+            // No tool calls, streaming message is already added
             finished = true;
           }
         }
