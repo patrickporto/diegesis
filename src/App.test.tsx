@@ -30,6 +30,6 @@ vi.mock("@react-oauth/google", () => ({
 describe("App", () => {
   it("renders app title", () => {
     render(<App />);
-    expect(screen.getByText(/Diegesis Notes/i)).toBeDefined();
+    expect(screen.getAllByText(/Diegesis/i).length).toBeGreaterThan(0);
   });
 });

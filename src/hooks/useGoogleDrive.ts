@@ -8,7 +8,13 @@ export interface GoogleUser {
   imageUrl: string;
 }
 
-export type SyncStatus = "idle" | "syncing" | "synced" | "error" | "expired";
+export type SyncStatus =
+  | "idle"
+  | "syncing"
+  | "synced"
+  | "error"
+  | "expired"
+  | "pending";
 
 export const useGoogleDrive = (doc?: Y.Doc) => {
   const [isSignedIn, setIsSignedIn] = useState(false);
@@ -17,7 +23,11 @@ export const useGoogleDrive = (doc?: Y.Doc) => {
   const [fileId, setFileId] = useState<string | null>(null);
   const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
   const [syncStatus, setSyncStatus] = useState<SyncStatus>("idle");
+  const [hasPendingChanges, setHasPendingChanges] = useState(false);
   const saveTimeoutRef = useRef<number | null>(null);
+  const pendingDocRef = useRef<Y.Doc | null>(null);
+  const pendingTokenRef = useRef<string | null>(null);
+  const pendingFileIdRef = useRef<string | null>(null);
 
   // Load token from storage on mount and validate it
   useEffect(() => {
@@ -136,8 +146,9 @@ export const useGoogleDrive = (doc?: Y.Doc) => {
         if (!response.ok) throw new Error("Failed to save to Drive");
 
         setLastSyncTime(new Date());
+        setHasPendingChanges(false);
         setSyncStatus("synced");
-        setTimeout(() => setSyncStatus("idle"), 3000);
+        setTimeout(() => setSyncStatus("idle"), 2000);
       } catch (err) {
         console.error("Error saving to Drive:", err);
         setSyncStatus("error");
@@ -155,11 +166,17 @@ export const useGoogleDrive = (doc?: Y.Doc) => {
         window.clearTimeout(saveTimeoutRef.current);
       }
 
-      setSyncStatus("idle"); // or 'dirty' if we had that state
-      // Debounce save (e.g., 5 seconds)
+      // Track pending changes for beforeunload
+      setHasPendingChanges(true);
+      setSyncStatus("pending");
+      pendingDocRef.current = doc;
+      pendingTokenRef.current = accessToken;
+      pendingFileIdRef.current = fileId;
+
+      // Debounce save (2 seconds for faster perceived sync)
       saveTimeoutRef.current = window.setTimeout(() => {
         saveToDrive(accessToken, fileId, doc);
-      }, 5000);
+      }, 2000);
     };
 
     doc.on("update", handleUpdate);
@@ -285,6 +302,41 @@ export const useGoogleDrive = (doc?: Y.Doc) => {
     }
   }, [isSignedIn, accessToken, fileId, doc, syncWithDrive]);
 
+  // Flush pending changes immediately (for beforeunload)
+  const flushPendingChanges = useCallback(async () => {
+    if (
+      hasPendingChanges &&
+      pendingDocRef.current &&
+      pendingTokenRef.current &&
+      pendingFileIdRef.current
+    ) {
+      // Cancel debounced save
+      if (saveTimeoutRef.current) {
+        window.clearTimeout(saveTimeoutRef.current);
+        saveTimeoutRef.current = null;
+      }
+      await saveToDrive(
+        pendingTokenRef.current,
+        pendingFileIdRef.current,
+        pendingDocRef.current
+      );
+    }
+  }, [hasPendingChanges, saveToDrive]);
+
+  // Prevent closing browser with unsaved changes
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (hasPendingChanges) {
+        e.preventDefault();
+        e.returnValue = ""; // Required for Chrome
+        // Try to save immediately
+        flushPendingChanges();
+      }
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [hasPendingChanges, flushPendingChanges]);
+
   return {
     isSignedIn,
     isInitialized: true,
@@ -295,5 +347,7 @@ export const useGoogleDrive = (doc?: Y.Doc) => {
     lastSyncTime,
     syncStatus,
     accessToken,
+    hasPendingChanges,
+    flushPendingChanges,
   };
 };
