@@ -1,25 +1,44 @@
 import { GoogleOAuthProvider } from "@react-oauth/google";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { Editor } from "@/components/Editor";
+import { FileTree } from "@/components/FileTree";
+import { OmniSearch } from "@/components/OmniSearch";
 import { Sidebar } from "@/components/Sidebar";
+import {
+  FileSystemProvider,
+  useFileSystem,
+} from "@/contexts/FileSystemContext";
 import { NotesProvider, useNotes } from "@/contexts/NotesContext";
 import { useGoogleDrive } from "@/hooks/useGoogleDrive";
 
 const CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 
-function AppContent() {
+function MainLayout() {
   const { synced: indexedDbSynced, doc } = useNotes();
+  const { activeFileId } = useFileSystem();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+
   const {
     isSignedIn,
     handleAuthClick,
     handleSignOutClick,
     syncWithDrive,
-    lastSyncTime,
     user,
     syncStatus,
   } = useGoogleDrive(doc);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+        e.preventDefault();
+        setIsSearchOpen(true);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
 
   const getSyncIcon = () => {
     switch (syncStatus) {
@@ -114,124 +133,76 @@ function AppContent() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans">
-      {/* Header */}
-      <header className="sticky top-0 z-10 backdrop-blur-md bg-white/70 border-b border-slate-200 px-4 sm:px-6 py-3">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 bg-sky-500 rounded-xl shadow-lg shadow-sky-500/30 flex items-center justify-center text-white font-bold text-xl">
+    <div className="flex h-screen bg-slate-50 text-slate-900 font-sans overflow-hidden">
+      {/* Sidebar: File Explorer */}
+      <div className="w-64 bg-slate-50 border-r border-slate-200 flex flex-col hidden md:flex shrink-0">
+        <div className="p-4 border-b border-slate-200 bg-white/50">
+          <h1 className="text-sm font-bold text-slate-700 flex items-center gap-2">
+            <div className="w-6 h-6 bg-sky-500 rounded flex items-center justify-center text-white text-xs">
               D
             </div>
-            <div className="hidden sm:block">
-              <h1 className="text-lg font-bold tracking-tight text-slate-800 leading-tight">
-                Diegesis Notes
-              </h1>
-              <div className="flex items-center gap-2">
-                <span
-                  className={`w-1.5 h-1.5 rounded-full ${
-                    indexedDbSynced
-                      ? "bg-emerald-500"
-                      : "bg-amber-500 animate-pulse"
-                  }`}
-                ></span>
-                <span className="text-[10px] uppercase tracking-wider font-bold text-slate-400">
-                  {indexedDbSynced ? "Offline Active" : "Connecting..."}
-                </span>
-              </div>
-            </div>
+            Diegesis
+          </h1>
+        </div>
+        <div className="flex-1 overflow-y-auto">
+          <FileTree />
+        </div>
+        {/* User Profile / Info at bottom of sidebar */}
+        <div className="p-4 border-t border-slate-200 bg-white/50">
+          <div className="flex items-center gap-2 mb-3">
+            <span
+              className={`w-2 h-2 rounded-full ${
+                indexedDbSynced ? "bg-emerald-500" : "bg-amber-500"
+              }`}
+            ></span>
+            <span className="text-xs text-slate-500 font-medium">
+              {indexedDbSynced ? "Ready" : "Offline"}
+            </span>
           </div>
-
-          <div className="flex items-center gap-2 sm:gap-4">
-            {isSignedIn && (
-              <button
-                onClick={() => syncWithDrive()}
-                disabled={syncStatus === "syncing"}
-                className="flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-white hover:shadow-sm border border-transparent hover:border-slate-200 transition-all group"
-                title={
-                  lastSyncTime
-                    ? `Last synced: ${lastSyncTime.toLocaleTimeString()}`
-                    : "Sync with Drive"
-                }
-              >
-                {getSyncIcon()}
-                <span className="text-xs font-semibold text-slate-500 group-hover:text-slate-700 hidden md:block">
-                  {syncStatus === "syncing"
-                    ? "Syncing..."
-                    : syncStatus === "synced"
-                    ? "Synced"
-                    : syncStatus === "expired"
-                    ? "Session Expired"
-                    : "Sync Now"}
-                </span>
-              </button>
-            )}
-
-            <div className="h-6 w-px bg-slate-200 hidden sm:block"></div>
-
-            {isSignedIn ? (
-              <div className="flex items-center gap-2 sm:gap-3">
-                <div className="flex flex-col items-end hidden md:flex">
-                  <span className="text-sm font-bold text-slate-700 leading-none">
-                    {user?.name}
-                  </span>
-                  <span className="text-[10px] text-slate-400 leading-none mt-1">
-                    {user?.email}
-                  </span>
-                </div>
-
-                <div className="relative group cursor-pointer">
-                  {user?.imageUrl ? (
-                    <img
-                      src={user.imageUrl}
-                      alt={user.name}
-                      className="w-9 h-9 rounded-full border-2 border-white shadow-sm transition-transform group-hover:scale-105"
-                    />
-                  ) : (
-                    <div className="w-9 h-9 rounded-full bg-sky-100 border-2 border-white shadow-sm flex items-center justify-center text-sky-600 font-bold">
-                      {user?.name?.[0]}
-                    </div>
-                  )}
-
-                  <div className="absolute right-0 top-full mt-2 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
-                    <div className="bg-white border border-slate-200 shadow-xl rounded-xl p-2 min-w-[140px]">
-                      <div className="px-3 py-2 border-b border-slate-50 md:hidden">
-                        <p className="text-xs font-bold text-slate-700">
-                          {user?.name}
-                        </p>
-                        <p className="text-[10px] text-slate-400">
-                          {user?.email}
-                        </p>
-                      </div>
-                      <button
-                        onClick={handleSignOutClick}
-                        className="w-full text-left px-3 py-2 rounded-lg text-rose-500 hover:bg-rose-50 text-xs font-bold transition-colors flex items-center gap-2"
-                      >
-                        <svg
-                          className="w-4 h-4"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          stroke="currentColor"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
-                          />
-                        </svg>
-                        Sign Out
-                      </button>
-                    </div>
+          {isSignedIn ? (
+            <div>
+              <div className="flex items-center gap-2 mb-2">
+                {user?.imageUrl ? (
+                  <img
+                    src={user.imageUrl}
+                    alt={user?.name}
+                    className="w-6 h-6 rounded-full"
+                  />
+                ) : (
+                  <div className="w-6 h-6 rounded-full bg-sky-100 text-sky-600 text-xs flex items-center justify-center font-bold">
+                    {user?.name?.[0]}
                   </div>
-                </div>
+                )}
+                <span className="text-xs font-bold truncate">{user?.name}</span>
               </div>
-            ) : (
               <button
-                onClick={handleAuthClick}
-                className="bg-sky-500 hover:bg-sky-400 text-white px-4 sm:px-5 py-2 rounded-xl text-sm font-bold shadow-lg shadow-sky-500/20 transition-all hover:translate-y-[-1px] active:translate-y-[1px] flex items-center gap-2"
+                onClick={handleSignOutClick}
+                className="text-xs text-rose-500 hover:text-rose-600 font-bold block"
               >
+                Sign Out
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={handleAuthClick}
+              className="w-full bg-sky-500 text-white text-xs font-bold py-1.5 rounded hover:bg-sky-600 transition-colors"
+            >
+              Sign In
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Main Area */}
+      <div className="flex-1 flex flex-col h-full min-w-0">
+        {/* Top Bar (Mobile Toggle + Sync + Actions) */}
+        <header className="h-12 border-b border-slate-200 bg-white flex items-center justify-between px-4 shrink-0">
+          <div className="flex items-center gap-3">
+            <div className="md:hidden">
+              {/* Mobile Menu Toggle (TODO) */}
+              <button className="p-1 text-slate-500">
                 <svg
-                  className="w-4 h-4"
+                  className="w-5 h-5"
                   fill="none"
                   viewBox="0 0 24 24"
                   stroke="currentColor"
@@ -240,48 +211,85 @@ function AppContent() {
                     strokeLinecap="round"
                     strokeLinejoin="round"
                     strokeWidth={2}
-                    d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
+                    d="M4 6h16M4 12h16M4 18h16"
                   />
                 </svg>
-                <span className="hidden sm:inline">Connect Google Drive</span>
-                <span className="sm:hidden">Login</span>
+              </button>
+            </div>
+            {/* Breadcrumbs or Active File Name */}
+            <span className="text-sm font-medium text-slate-600 truncate">
+              {/* Breadcrumbs here */}
+            </span>
+          </div>
+
+          <div className="flex items-center gap-3">
+            {isSignedIn && (
+              <button
+                onClick={() => syncWithDrive()}
+                disabled={syncStatus === "syncing"}
+                className="p-1.5 text-slate-400 hover:bg-slate-100 rounded-lg transition-colors"
+                title="Sync"
+              >
+                {getSyncIcon()}
               </button>
             )}
-
             <button
               onClick={() => setIsSidebarOpen(true)}
-              className="p-2 text-slate-500 hover:bg-slate-100 rounded-xl transition-colors relative"
-              title="Open Assistant"
+              className="p-1.5 text-slate-400 hover:text-sky-500 hover:bg-sky-50 rounded-lg transition-colors"
             >
               <svg
-                xmlns="http://www.w3.org/2000/svg"
+                className="w-5 h-5"
+                fill="none"
                 viewBox="0 0 24 24"
-                fill="currentColor"
-                className="w-6 h-6"
+                stroke="currentColor"
               >
                 <path
-                  fillRule="evenodd"
-                  d="M9 4.5a.75.75 0 01.721.544l.813 2.846a3.75 3.75 0 002.576 2.576l2.846.813a.75.75 0 010 1.442l-2.846.813a3.75 3.75 0 00-2.576 2.576l-.813 2.846a.75.75 0 01-1.442 0l-.813-2.846a3.75 3.75 0 00-2.576-2.576l-2.846-.813a.75.75 0 010-1.442l2.846-.813a3.75 3.75 0 002.576-2.576l.813-2.846A.75.75 0 019 4.5zM6.97 6.97a.75.75 0 011.06 0l.44.44a.75.75 0 11-1.06 1.06l-.44-.44a.75.75 0 010-1.06zm9.54 0a.75.75 0 011.06 0l.44.44a.75.75 0 11-1.06 1.06l-.44-.44a.75.75 0 010-1.06z"
-                  clipRule="evenodd"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"
                 />
               </svg>
             </button>
           </div>
-        </div>
-      </header>
+        </header>
 
-      {/* Main Content */}
-      <main className="max-w-4xl mx-auto py-2 px-0 sm:px-6 sm:py-12">
-        {indexedDbSynced ? (
-          <Editor />
-        ) : (
-          <div className="flex flex-col items-center justify-center h-[50vh] text-slate-400">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-sky-500 mb-4"></div>
-            <p>Loading your notes...</p>
+        {/* Editor Container */}
+        <main className="flex-1 overflow-y-auto bg-slate-50 relative">
+          <div className="max-w-4xl mx-auto h-full px-2 py-4 sm:px-8 sm:py-8">
+            {activeFileId ? (
+              <Editor />
+            ) : (
+              <div className="flex flex-col items-center justify-center h-full text-slate-400">
+                <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mb-4 text-slate-300">
+                  <svg
+                    className="w-8 h-8"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M9 13h6m-3-3v6m-9 1V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"
+                    />
+                  </svg>
+                </div>
+                <p className="text-sm font-medium">
+                  Select a file from the sidebar
+                </p>
+              </div>
+            )}
           </div>
-        )}
-      </main>
+        </main>
+      </div>
+
       <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
+      <OmniSearch
+        isOpen={isSearchOpen}
+        onClose={() => setIsSearchOpen(false)}
+      />
     </div>
   );
 }
@@ -294,7 +302,9 @@ function App() {
   return (
     <GoogleOAuthProvider clientId={CLIENT_ID}>
       <NotesProvider>
-        <AppContent />
+        <FileSystemProvider>
+          <MainLayout />
+        </FileSystemProvider>
       </NotesProvider>
     </GoogleOAuthProvider>
   );

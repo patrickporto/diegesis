@@ -59,7 +59,7 @@ export async function executeTool(
             editor.document[0].content === undefined && // or empty array
             (editor.document[0] as unknown as { content: unknown[] }).content
               ?.length === 0) ||
-          editor.document[0].content === "" || // Handling BlockNote variations
+          (editor.document[0].content as unknown as string) === "" || // Handling BlockNote variations
           JSON.stringify(editor.document[0].content) === "[]";
 
         const currentBlock = editor.getTextCursorPosition().block;

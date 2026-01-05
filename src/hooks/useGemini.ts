@@ -20,6 +20,10 @@ interface GeminiPart {
     name: string;
     args: Record<string, unknown>;
   };
+  functionResponse?: {
+    name: string;
+    response: unknown;
+  };
 }
 
 interface GeminiCandidate {
@@ -126,11 +130,9 @@ export function useGemini(editor?: BlockNoteEditor | null) {
             // Handle Function Call
             const { name, args } = functionCallPart.functionCall;
 
-            // Add model's function call request to history
             currentTurnMessages.push({
               role: "model",
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              parts: [functionCallPart] as any[], // keeping structure compatible with API input
+              parts: [functionCallPart], // keeping structure compatible with API input
             });
 
             let result = "Error: Editor not connected.";

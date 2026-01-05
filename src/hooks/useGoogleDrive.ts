@@ -108,7 +108,9 @@ export const useGoogleDrive = (doc?: Y.Doc) => {
       setSyncStatus("syncing");
       try {
         const update = Y.encodeStateAsUpdate(currentDoc);
-        const blob = new Blob([update], { type: "application/octet-stream" });
+        const blob = new Blob([update], {
+          type: "application/octet-stream",
+        });
 
         const metadata = {
           name: "diegesis-notes.yjs",
@@ -225,9 +227,10 @@ export const useGoogleDrive = (doc?: Y.Doc) => {
           mimeType: "application/octet-stream",
         };
 
-        // Initial state
         const update = Y.encodeStateAsUpdate(doc);
-        const blob = new Blob([update], { type: "application/octet-stream" });
+        const blob = new Blob([update], {
+          type: "application/octet-stream",
+        });
 
         const form = new FormData();
         form.append(
