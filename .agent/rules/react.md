@@ -31,3 +31,5 @@ Follow these rules when you write code:
 
 ## Linting
 - Always execute bun run lint after making changes and resolve any identified issues.
+- Run bun run build:ci
+- Always execute tsc && vite build  after making changes and resolve any identified issues.
