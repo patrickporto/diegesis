@@ -8,6 +8,99 @@ interface ChatInterfaceProps {
   onSendMessage: (text: string) => void;
 }
 
+function QuotaError({ initialSeconds }: { initialSeconds: number }) {
+  const [timeLeft, setTimeLeft] = useState(initialSeconds);
+
+  useEffect(() => {
+    if (timeLeft <= 0) return;
+    const interval = setInterval(() => {
+      setTimeLeft((prev) => Math.max(0, prev - 1));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [timeLeft]);
+
+  return (
+    <div className="flex justify-start">
+      <div className="max-w-[85%] bg-amber-50 text-amber-900 border border-amber-200 rounded-2xl p-4 shadow-sm text-sm">
+        <div className="flex items-start gap-3">
+          <svg
+            className="w-5 h-5 text-amber-50 shrink-0 mt-0.5"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+            />
+          </svg>
+          <div>
+            <h4 className="font-bold mb-1">Rate Limit Reached</h4>
+            <p className="mb-2 text-amber-800">
+              You&apos;ve hit the free tier limit for Gemini. Please wait a
+              moment before sending more messages.
+            </p>
+            <div className="font-mono bg-white/50 px-2 py-1 rounded inline-block text-amber-700 font-bold border border-amber-100">
+              {timeLeft > 0 ? (
+                <>Try again in {Math.ceil(timeLeft)}s</>
+              ) : (
+                <>Ready to retry!</>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Helper to parse thinking blocks
+function ThinkingBlock({ text }: { text: string }) {
+  // Split by thinking tag
+  const parts = text.split(/(<thinking>[\s\S]*?<\/thinking>)/g);
+
+  return (
+    <>
+      {parts.map((part, index) => {
+        if (part.startsWith("<thinking>") && part.endsWith("</thinking>")) {
+          const content = part.replace(/<\/?thinking>/g, "").trim();
+          return (
+            <details
+              key={index}
+              className="mb-2 group"
+              open={process.env.NODE_ENV === "development"}
+            >
+              <summary className="text-xs font-medium text-slate-500 cursor-pointer select-none list-none flex items-center gap-1 hover:text-slate-700">
+                <svg
+                  className="w-3 h-3 transition-transform group-open:rotate-90"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M9 5l7 7-7 7"
+                  />
+                </svg>
+                Thinking Process
+              </summary>
+              <div className="mt-1 pl-4 border-l-2 border-slate-200 text-xs text-slate-500 font-mono whitespace-pre-wrap">
+                {content}
+              </div>
+            </details>
+          );
+        }
+        if (!part.trim()) return null;
+        return <span key={index}>{part}</span>;
+      })}
+    </>
+  );
+}
+
 export function ChatInterface({
   messages,
   isLoading,
@@ -42,24 +135,42 @@ export function ChatInterface({
           </div>
         )}
 
-        {messages.map((msg) => (
-          <div
-            key={msg.id}
-            className={`flex ${
-              msg.role === "user" ? "justify-end" : "justify-start"
-            }`}
-          >
+        {messages.map((msg) => {
+          const isQuotaError = msg.text.includes("Quota exceeded");
+          const retryMatch = msg.text.match(/retry in (\d+(\.\d+)?)s/);
+          const secondsToWait = retryMatch ? parseFloat(retryMatch[1]) : null;
+
+          if (isQuotaError && secondsToWait) {
+            return <QuotaError key={msg.id} initialSeconds={secondsToWait} />;
+          }
+
+          return (
             <div
-              className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap shadow-sm ${
-                msg.role === "user"
-                  ? "bg-sky-500 text-white rounded-br-none"
-                  : "bg-slate-100 text-slate-800 rounded-bl-none border border-slate-200"
+              key={msg.id}
+              className={`flex ${
+                msg.role === "user" ? "justify-end" : "justify-start"
               }`}
             >
-              {msg.text}
+              <div
+                className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap shadow-sm ${
+                  msg.text.startsWith("Error:")
+                    ? "bg-rose-50 text-rose-800 border border-rose-200 rounded-bl-none"
+                    : msg.role === "user"
+                    ? "bg-sky-500 text-white rounded-br-none"
+                    : "bg-slate-100 text-slate-800 rounded-bl-none border border-slate-200"
+                }`}
+              >
+                {msg.text.startsWith("Error:") ? (
+                  msg.text.replace("Error: ", "")
+                ) : msg.role === "user" ? (
+                  msg.text
+                ) : (
+                  <ThinkingBlock text={msg.text} />
+                )}
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
 
         {isLoading && (
           <div className="flex justify-start">

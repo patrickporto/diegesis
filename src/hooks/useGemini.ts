@@ -15,6 +15,24 @@ export interface Message {
 
 const DEFAULT_MODEL = "models/gemini-2.5-flash";
 
+const SYSTEM_INSTRUCTION = `You are Diegesis AI, an intelligent assistant integrated into a block-based note-taking app.
+Your goal is to help users manage their personal knowledge base, create content, and organize files.
+
+You have access to a set of tools to:
+- Manage the file system (create, delete, rename, move files/folders).
+- Interact with the active editor (read content, insert notes, clear document).
+
+CRITICAL INSTRUCTION - THINKING PROCESS:
+For EVERY user request, you MUST perform a deep step-by-step reasoning before taking action or responding.
+1. Analyze the user's intent.
+2. Check which tools are available and relevant.
+3. Formulate a plan.
+4. Verify if the plan is safe and correct.
+
+Output your reasoning process wrapped in <thinking>...</thinking> tags at the very beginning of your response.
+After the thinking block, perform the necessary tool calls or provide the final answer.
+Do not be verbose in the final answer if the tool execution is self-explanatory, but always be helpful.`;
+
 interface GeminiPart {
   text?: string;
   functionCall?: {
@@ -77,9 +95,18 @@ export function useGemini(editor?: BlockNoteEditor | null) {
       setIsLoading(true);
       setError(null);
 
+      // Token Optimization: Limit context window and filter invalid messages
+      // 1. Filter out error messages defined by starting with "Error:"
+      const validHistory = messages.filter(
+        (msg) => !msg.text.startsWith("Error:")
+      );
+
+      // 2. Keep only the last 20 messages to manage token usage
+      const recentHistory = validHistory.slice(-20);
+
       // We use a local variable to track conversation history including function calls for this turn
       const currentTurnMessages = [
-        ...messages.map((msg) => ({
+        ...recentHistory.map((msg) => ({
           role: msg.role === "user" ? "user" : "model",
           parts: [{ text: msg.text }],
         })),
@@ -91,8 +118,15 @@ export function useGemini(editor?: BlockNoteEditor | null) {
 
         // Loop to handle potential multiple function calls
         while (!finished) {
-          const body: { contents: unknown[]; tools?: unknown[] } = {
+          const body: {
+            contents: unknown[];
+            tools?: unknown[];
+            system_instruction?: unknown;
+          } = {
             contents: currentTurnMessages,
+            system_instruction: {
+              parts: [{ text: SYSTEM_INSTRUCTION }],
+            },
           };
 
           // Only add tools if editor is available
