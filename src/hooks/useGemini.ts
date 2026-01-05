@@ -1,5 +1,6 @@
 import { BlockNoteEditor } from "@blocknote/core";
 import { useCallback, useState } from "react";
+import { uuidv7 } from "uuidv7";
 
 import { executeTool, GEMINI_TOOLS } from "@/agent/tools";
 import { useFileSystem } from "@/contexts/FileSystemContext";
@@ -85,7 +86,7 @@ export function useGemini(editor?: BlockNoteEditor | null) {
       }
 
       const newMessage: Message = {
-        id: crypto.randomUUID(),
+        id: uuidv7(),
         role: "user",
         text,
         timestamp: new Date(),
@@ -198,7 +199,7 @@ export function useGemini(editor?: BlockNoteEditor | null) {
               textPart?.text || "I couldn't generate a response.";
 
             const responseMessage: Message = {
-              id: crypto.randomUUID(),
+              id: uuidv7(),
               role: "model",
               text: responseText,
               timestamp: new Date(),
@@ -215,7 +216,7 @@ export function useGemini(editor?: BlockNoteEditor | null) {
         setError(errorMessageText);
 
         const errorMessage: Message = {
-          id: crypto.randomUUID(),
+          id: uuidv7(),
           role: "model",
           text: `Error: ${errorMessageText}`,
           timestamp: new Date(),
