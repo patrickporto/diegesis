@@ -17,7 +17,7 @@ export function OmniSearch({
     {
       id: string;
       name: string;
-      type: "file" | "folder";
+      type: "folder" | "text" | string;
       matchType: "name" | "content";
       snippet?: string;
     }[]
@@ -57,7 +57,7 @@ export function OmniSearch({
     // For now, we iterate all files and get their fragment text.
     // Ideally we index this or do it async.
     fileTree.forEach((node) => {
-      if (node.type === "file") {
+      if (node.type === "text") {
         const fragment = doc.getXmlFragment(`content-${node.id}`);
         const textContent = fragment.toString(); // Gets basic text content
         if (textContent.toLowerCase().includes(lowerQuery)) {
@@ -83,8 +83,8 @@ export function OmniSearch({
     setResults(searchResults);
   }, [query, fileTree, doc, isOpen]);
 
-  const handleSelect = (id: string, type: "file" | "folder") => {
-    if (type === "file") {
+  const handleSelect = (id: string, type: "folder" | "text" | string) => {
+    if (type !== "folder") {
       setActiveFileId(id);
       onClose();
     } else {

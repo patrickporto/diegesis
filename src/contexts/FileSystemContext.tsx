@@ -13,7 +13,7 @@ import { useNotes } from "@/contexts/NotesContext";
 export interface FileNode {
   id: string;
   name: string;
-  type: "file" | "folder";
+  type: "folder" | "text" | string;
   parentId: string | null;
   tags: string[]; // hex codes
   createdAt: string;
@@ -73,9 +73,28 @@ export function FileSystemProvider({ children }: { children: ReactNode }) {
     // Observer to update local state when Yjs map changes
     const observer = () => {
       const nodes: FileNode[] = [];
+      const nodesToMigrate: FileNode[] = [];
+
       fileMap.forEach((node) => {
-        nodes.push(node);
+        // Migration: "file" -> "text"
+        if (node.type === "file") {
+          const migratedNode = { ...node, type: "text" };
+          nodes.push(migratedNode);
+          nodesToMigrate.push(migratedNode);
+        } else {
+          nodes.push(node);
+        }
       });
+
+      // Apply migrations if any
+      if (nodesToMigrate.length > 0) {
+        doc.transact(() => {
+          nodesToMigrate.forEach((node) => {
+            fileMap.set(node.id, node);
+          });
+        });
+      }
+
       // Sort by type (folder first) then name
       nodes.sort((a, b) => {
         if (a.type === b.type) return a.name.localeCompare(b.name);
@@ -138,7 +157,7 @@ export function FileSystemProvider({ children }: { children: ReactNode }) {
       const welcomeNode: FileNode = {
         id: welcomeId,
         name: "Welcome / Migrated Note",
-        type: "file",
+        type: "text",
         parentId: null,
         tags: [],
         createdAt: new Date().toISOString(),
@@ -160,14 +179,14 @@ export function FileSystemProvider({ children }: { children: ReactNode }) {
       fileMap.unobserve(observer);
       tagDefsMap.unobserve(tagObserver);
     };
-  }, [fileMap, tagDefsMap, synced]);
+  }, [fileMap, tagDefsMap, synced, doc]);
 
   const createFile = (name: string, parentId: string | null = null) => {
     const id = uuidv7();
     const newNode: FileNode = {
       id,
       name,
-      type: "file",
+      type: "text",
       parentId,
       tags: [],
       createdAt: new Date().toISOString(),

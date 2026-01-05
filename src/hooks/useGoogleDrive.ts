@@ -64,6 +64,13 @@ export const useGoogleDrive = (doc?: Y.Doc) => {
   // We need to wrap the entire component in a try-catch at render time
   // which React doesn't support for hooks. Instead, we'll make this hook
   // only usable when GoogleOAuthProvider is present, and create a "dummy" version for offline mode.
+  // Get the current origin and pathname for redirect URI
+  // This ensures the redirect works on both localhost and production (GitHub Pages)
+  const redirectUri =
+    typeof window !== "undefined"
+      ? `${window.location.origin}${window.location.pathname}`
+      : "";
+
   const login = useGoogleLogin({
     onSuccess: async (tokenResponse) => {
       console.log("Login success, token received:", tokenResponse);
@@ -99,7 +106,9 @@ export const useGoogleDrive = (doc?: Y.Doc) => {
       console.error("Non-OAuth error:", error);
     },
     scope: "openid profile email https://www.googleapis.com/auth/drive.file",
+    flow: "implicit",
     ux_mode: "redirect",
+    redirect_uri: redirectUri,
   });
 
   // Handle redirect callback
