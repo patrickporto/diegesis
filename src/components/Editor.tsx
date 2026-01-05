@@ -3,7 +3,7 @@ import "@blocknote/mantine/style.css";
 
 import { BlockNoteView } from "@blocknote/mantine";
 import { useCreateBlockNote } from "@blocknote/react";
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { IndexeddbPersistence } from "y-indexeddb";
 import * as Y from "yjs";
@@ -11,9 +11,11 @@ import * as Y from "yjs";
 import { useFileSystem } from "@/contexts/FileSystemContext";
 import { useNotes } from "@/contexts/NotesContext";
 
+import { TableEditor } from "./TableEditor/TableEditor";
+
 export const Editor = () => {
   const { doc, provider } = useNotes();
-  const { activeFileId } = useFileSystem();
+  const { activeFileId, fileMap } = useFileSystem();
 
   // We need to use a memoized key or similar to force re-creation if fileId changes,
   // OR we rely on useCreateBlockNote to handle dependency updates if we pass different fragment.
@@ -21,12 +23,21 @@ export const Editor = () => {
 
   // Best approach: A sub-component that takes fileId as key.
 
-  if (!activeFileId) {
+  const activeFileNode = useMemo(() => {
+    if (!activeFileId) return null;
+    return fileMap.get(activeFileId);
+  }, [activeFileId, fileMap]);
+
+  if (!activeFileId || !activeFileNode) {
     return (
       <div className="flex items-center justify-center h-full text-slate-400">
         <p>Select a file to edit</p>
       </div>
     );
+  }
+
+  if (activeFileNode.type === "table") {
+    return <TableEditor key={activeFileId} fileId={activeFileId} doc={doc} />;
   }
 
   return (

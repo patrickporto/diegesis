@@ -13,7 +13,7 @@ import { useNotes } from "@/contexts/NotesContext";
 export interface FileNode {
   id: string;
   name: string;
-  type: "folder" | "text" | string;
+  type: "folder" | "text" | "table" | string;
   parentId: string | null;
   tags: string[]; // hex codes
   createdAt: string;
@@ -44,6 +44,7 @@ export interface FileSystemContextType {
   tagDefs: TagDefinition[];
   createFile: (name: string, parentId?: string | null) => string;
   createFolder: (name: string, parentId?: string | null) => string;
+  createTable: (name: string, parentId?: string | null) => string;
   deleteItem: (id: string) => void;
   renameItem: (id: string, newName: string) => void;
   moveItem: (id: string, newParentId: string | null) => void;
@@ -196,6 +197,21 @@ export function FileSystemProvider({ children }: { children: ReactNode }) {
     return id;
   };
 
+  const createTable = (name: string, parentId: string | null = null) => {
+    const id = uuidv7();
+    const newNode: FileNode = {
+      id,
+      name,
+      type: "table",
+      parentId,
+      tags: [],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    fileMap.set(id, newNode);
+    return id;
+  };
+
   const createFolder = (name: string, parentId: string | null = null) => {
     const id = uuidv7();
     const newNode: FileNode = {
@@ -273,6 +289,7 @@ export function FileSystemProvider({ children }: { children: ReactNode }) {
         fileMap,
         createFile,
         createFolder,
+        createTable,
         deleteItem,
         renameItem,
         moveItem,

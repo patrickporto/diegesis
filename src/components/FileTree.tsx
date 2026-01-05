@@ -2,6 +2,7 @@ import { useState } from "react";
 
 import { ConfirmModal } from "@/components/ConfirmModal";
 import { ContextMenu } from "@/components/ContextMenu";
+import { CreateItemModal } from "@/components/CreateItemModal";
 import { TagSelector } from "@/components/TagSelector";
 import { FileNode, useFileSystem } from "@/contexts/FileSystemContext";
 
@@ -10,7 +11,37 @@ interface FileTreeProps {
 }
 
 export function FileTree({ className }: FileTreeProps) {
-  const { fileTree, createFolder, createFile, moveItem } = useFileSystem();
+  const { fileTree, createFolder, createFile, createTable, moveItem } =
+    useFileSystem();
+
+  // Modal State
+  const [modalOpen, setModalOpen] = useState(false);
+  const [modalParentId, setModalParentId] = useState<string | null>(null);
+  const [modalType, setModalType] = useState<"text" | "table" | "folder">(
+    "text"
+  );
+
+  const openCreateModal = (
+    parentId: string | null,
+    type: "text" | "table" | "folder" = "text"
+  ) => {
+    setModalParentId(parentId);
+    setModalType(type);
+    setModalOpen(true);
+  };
+
+  const handleCreateItem = (
+    name: string,
+    type: "text" | "table" | "folder"
+  ) => {
+    if (type === "folder") {
+      createFolder(name, modalParentId);
+    } else if (type === "table") {
+      createTable(name, modalParentId);
+    } else {
+      createFile(name, modalParentId);
+    }
+  };
 
   const rootItems = fileTree.filter((node) => node.parentId === null);
 
@@ -32,15 +63,22 @@ export function FileTree({ className }: FileTreeProps) {
 
   return (
     <div className={`p-2 ${className}`}>
+      <CreateItemModal
+        isOpen={modalOpen}
+        onClose={() => setModalOpen(false)}
+        onCreate={handleCreateItem}
+        initialType={modalType}
+      />
+
       <div className="flex items-center justify-between mb-2">
         <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">
           Explorer
         </h3>
         <div className="flex gap-1">
           <button
-            onClick={() => createFile("New Note")}
-            title="New File"
-            className="p-1 hover:bg-slate-200 rounded"
+            onClick={() => openCreateModal(null, "text")}
+            title="New Item"
+            className="p-1 hover:bg-slate-200 rounded flex items-center justify-center"
           >
             <svg
               className="w-4 h-4 text-slate-600"
@@ -52,26 +90,7 @@ export function FileTree({ className }: FileTreeProps) {
                 strokeLinecap="round"
                 strokeLinejoin="round"
                 strokeWidth={2}
-                d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-              />
-            </svg>
-          </button>
-          <button
-            onClick={() => createFolder("New Folder")}
-            title="New Folder"
-            className="p-1 hover:bg-slate-200 rounded"
-          >
-            <svg
-              className="w-4 h-4 text-slate-600"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M9 13h6m-3-3v6m-9 1V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"
+                d="M12 4v16m8-8H4"
               />
             </svg>
           </button>
@@ -83,7 +102,11 @@ export function FileTree({ className }: FileTreeProps) {
         onDrop={(e) => handleDrop(e, null)}
       >
         {rootItems.map((node) => (
-          <FileTreeNode key={node.id} node={node} />
+          <FileTreeNode
+            key={node.id}
+            node={node}
+            onCreateItem={openCreateModal}
+          />
         ))}
         {rootItems.length === 0 && (
           <div className="text-xs text-slate-400 italic px-2">
@@ -95,7 +118,16 @@ export function FileTree({ className }: FileTreeProps) {
   );
 }
 
-function FileTreeNode({ node }: { node: FileNode }) {
+function FileTreeNode({
+  node,
+  onCreateItem,
+}: {
+  node: FileNode;
+  onCreateItem: (
+    parentId: string | null,
+    type: "text" | "table" | "folder"
+  ) => void;
+}) {
   const {
     fileTree,
     activeFileId,
@@ -103,8 +135,6 @@ function FileTreeNode({ node }: { node: FileNode }) {
     deleteItem,
     renameItem,
     moveItem,
-    createFile,
-    createFolder,
   } = useFileSystem();
   const [isOpen, setIsOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -167,17 +197,10 @@ function FileTreeNode({ node }: { node: FileNode }) {
     ];
     if (node.type === "folder") {
       options.unshift({
-        label: "New File",
+        label: "New Item",
         action: () => {
           setIsOpen(true);
-          createFile("New Note", node.id);
-        },
-      });
-      options.unshift({
-        label: "New Folder",
-        action: () => {
-          setIsOpen(true);
-          createFolder("New Folder", node.id);
+          onCreateItem(node.id, "text");
         },
       });
     }
@@ -278,7 +301,11 @@ function FileTreeNode({ node }: { node: FileNode }) {
                   strokeLinecap="round"
                   strokeLinejoin="round"
                   strokeWidth={2}
-                  d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 2H7a2 2 0 00-2 2v14a2 2 0 002 2z"
+                  d={
+                    node.type === "table"
+                      ? "M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"
+                      : "M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 2H7a2 2 0 00-2 2v14a2 2 0 002 2z"
+                  }
                 />
               </svg>
             )}
@@ -366,7 +393,11 @@ function FileTreeNode({ node }: { node: FileNode }) {
         {isOpen && node.type === "folder" && (
           <div className="pl-4 border-l border-slate-100 ml-2.5">
             {children.map((child) => (
-              <FileTreeNode key={child.id} node={child} />
+              <FileTreeNode
+                key={child.id}
+                node={child}
+                onCreateItem={onCreateItem}
+              />
             ))}
             {/* Drop zone for empty folder */}
             {children.length === 0 && (
