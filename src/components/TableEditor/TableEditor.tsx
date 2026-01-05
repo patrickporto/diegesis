@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { uuidv7 } from "uuidv7";
 import * as Y from "yjs";
 
@@ -39,7 +40,15 @@ export function TableEditor({ fileId, doc }: TableEditorProps) {
       doc.transact(() => {
         schemaArray.push([
           { id: uuidv7(), name: "Name", type: "text" },
-          { id: uuidv7(), name: "Tags", type: "select", options: ["A", "B"] },
+          {
+            id: uuidv7(),
+            name: "Tags",
+            type: "multi-select",
+            options: [
+              { id: uuidv7(), label: "Work", color: "#fb7185" },
+              { id: uuidv7(), label: "Personal", color: "#60a5fa" },
+            ],
+          },
         ]);
       });
     }
@@ -50,7 +59,14 @@ export function TableEditor({ fileId, doc }: TableEditorProps) {
   // Observer for Rows
   useEffect(() => {
     const observer = () => {
-      setRows(rowsArray.toArray().map((yMap) => yMap.toJSON() as RowValues));
+      setRows(
+        rowsArray.toArray().map((yMap) => {
+          const data = yMap.toJSON();
+          // Ensure id exists even for legacy data
+          if (!data.id) data.id = uuidv7();
+          return data as RowValues;
+        })
+      );
     };
     rowsArray.observeDeep(observer);
     observer(); // Initial load
@@ -81,7 +97,7 @@ export function TableEditor({ fileId, doc }: TableEditorProps) {
 
   const addRow = () => {
     doc.transact(() => {
-      const newRowMap = new Y.Map();
+      const newRowMap = new Y.Map<CellValue>();
       newRowMap.set("id", uuidv7());
       rowsArray.push([newRowMap]);
     });
@@ -158,10 +174,7 @@ export function TableEditor({ fileId, doc }: TableEditorProps) {
             </thead>
             <tbody>
               {rows.map((row, rIdx) => (
-                <tr
-                  key={row.id || rIdx}
-                  className="group/row hover:bg-slate-50"
-                >
+                <tr key={row.id} className="group/row hover:bg-slate-50">
                   {columns.map((col, cIdx) => (
                     <td
                       key={col.id}
@@ -180,7 +193,25 @@ export function TableEditor({ fileId, doc }: TableEditorProps) {
                           <CellInput
                             value={row[col.id]}
                             type={col.type}
+                            options={col.options}
                             onChange={(val) => updateCell(rIdx, col.id, val)}
+                            onAddOption={(newOption) => {
+                              // We need to update the column schema with the new option
+                              const currentOptions = col.options || [];
+                              // Simple check to prevent duplicates
+                              if (
+                                currentOptions.some(
+                                  (o) =>
+                                    o.label.toLowerCase() ===
+                                    newOption.label.toLowerCase()
+                                )
+                              ) {
+                                return;
+                              }
+                              updateColumn(cIdx, {
+                                options: [...currentOptions, newOption],
+                              });
+                            }}
                           />
                         )}
                       </div>
@@ -243,42 +274,283 @@ export function TableEditor({ fileId, doc }: TableEditorProps) {
   );
 }
 
+const SelectCell = ({
+  value,
+  options,
+  onChange,
+}: {
+  value: CellValue;
+  options?: { id: string; label: string; color: string }[];
+  onChange: (val: CellValue) => void;
+}) => (
+  <div className="relative w-full h-full group/select">
+    <select
+      className="w-full h-full px-3 py-1.5 bg-transparent outline-none text-sm text-slate-700 appearance-none cursor-pointer"
+      value={String(value ?? "")}
+      onChange={(e) => onChange(e.target.value)}
+    >
+      <option value="" disabled className="text-slate-300">
+        Select option...
+      </option>
+      {(options || []).map((opt) => (
+        <option key={opt.id} value={opt.label}>
+          {opt.label}
+        </option>
+      ))}
+    </select>
+    <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400 group-hover/select:text-slate-600">
+      <svg
+        className="w-3 h-3"
+        fill="none"
+        viewBox="0 0 24 24"
+        stroke="currentColor"
+      >
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth={2}
+          d="M19 9l-7 7-7-7"
+        />
+      </svg>
+    </div>
+  </div>
+);
+
+const MultiSelectCell = ({
+  value,
+  options,
+  onChange,
+  onAddOption,
+}: {
+  value: CellValue;
+  options?: { id: string; label: string; color: string }[];
+  onChange: (val: CellValue) => void;
+  onAddOption?: (opt: { id: string; label: string; color: string }) => void;
+}) => {
+  const selectedValues = Array.isArray(value) ? value : [];
+  const [isOpen, setIsOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const buttonRef = useRef<HTMLButtonElement>(null);
+
+  const filteredOptions = (options || []).filter((opt) =>
+    opt.label.toLowerCase().includes(search.toLowerCase())
+  );
+
+  const toggleValue = (label: string) => {
+    if (selectedValues.includes(label)) {
+      onChange(selectedValues.filter((v) => v !== label));
+    } else {
+      onChange([...selectedValues, label]);
+    }
+  };
+
+  const handleCreateOption = () => {
+    if (!onAddOption || !search.trim()) return;
+    const colors = [
+      "#f87171",
+      "#fb923c",
+      "#fbbf24",
+      "#a3e635",
+      "#4ade80",
+      "#34d399",
+      "#22d3ee",
+      "#60a5fa",
+      "#818cf8",
+      "#a78bfa",
+      "#c084fc",
+      "#e879f9",
+      "#fb7185",
+    ];
+    onAddOption({
+      id: uuidv7(),
+      label: search.trim(),
+      color: colors[Math.floor(Math.random() * colors.length)],
+    });
+    toggleValue(search.trim());
+    setSearch("");
+  };
+
+  return (
+    <>
+      <button
+        ref={buttonRef}
+        onClick={() => setIsOpen(!isOpen)}
+        className="w-full h-full text-left px-2 flex items-center gap-1.5 overflow-hidden hover:bg-slate-50"
+      >
+        {selectedValues.length === 0 && (
+          <span className="text-slate-300 text-sm pl-1">Empty</span>
+        )}
+        {selectedValues.map((val) => {
+          const opt = (options || []).find((o) => o.label === val);
+          return (
+            <span
+              key={val}
+              className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium leading-4 shadow-sm"
+              style={{
+                backgroundColor: opt?.color || "#e2e8f0",
+                color: "#fff",
+                textShadow: "0px 1px 1px rgba(0,0,0,0.2)",
+              }}
+            >
+              {val}
+            </span>
+          );
+        })}
+      </button>
+
+      {isOpen &&
+        createPortal(
+          <>
+            <div
+              className="fixed inset-0 z-[60] bg-transparent"
+              onClick={() => setIsOpen(false)}
+            />
+            <div
+              style={{
+                top:
+                  (buttonRef.current?.getBoundingClientRect().bottom || 0) + 4,
+                left: buttonRef.current?.getBoundingClientRect().left || 0,
+              }}
+              className="fixed z-[70] w-64 bg-white border border-slate-200 shadow-xl rounded-lg flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-100 p-1"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <input
+                autoFocus
+                className="w-full px-2 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded mb-1 outline-none focus:ring-1 focus:ring-blue-500"
+                placeholder="Search or create..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && search.trim()) {
+                    const exact = (options || []).find(
+                      (o) =>
+                        o.label.toLowerCase() === search.trim().toLowerCase()
+                    );
+                    if (exact) {
+                      toggleValue(exact.label);
+                      setSearch("");
+                    } else {
+                      handleCreateOption();
+                    }
+                  }
+                }}
+              />
+              <div className="text-[10px] font-bold text-slate-400 px-2 py-1 uppercase tracking-wider">
+                Select an option or create one
+              </div>
+              <div className="max-h-48 overflow-y-auto space-y-0.5">
+                {filteredOptions.map((opt) => {
+                  const isSelected = selectedValues.includes(opt.label);
+                  return (
+                    <button
+                      key={opt.id}
+                      onClick={() => toggleValue(opt.label)}
+                      className="w-full flex items-center justify-between px-2 py-1.5 text-xs rounded hover:bg-slate-100 transition-colors"
+                    >
+                      <div className="flex items-center gap-2">
+                        <div
+                          className="w-3 h-3 rounded-full shadow-sm"
+                          style={{ backgroundColor: opt.color }}
+                        />
+                        <span
+                          className={
+                            isSelected
+                              ? "opacity-100 font-medium"
+                              : "opacity-80"
+                          }
+                        >
+                          {opt.label}
+                        </span>
+                      </div>
+                      {isSelected && (
+                        <svg
+                          className="w-3.5 h-3.5 text-blue-600"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M5 13l4 4L19 7"
+                          />
+                        </svg>
+                      )}
+                    </button>
+                  );
+                })}
+                {search.trim() &&
+                  !filteredOptions.some(
+                    (o) => o.label.toLowerCase() === search.trim().toLowerCase()
+                  ) && (
+                    <button
+                      onClick={handleCreateOption}
+                      className="w-full flex items-center gap-2 px-2 py-1.5 text-xs text-slate-600 hover:bg-slate-100 rounded"
+                    >
+                      <span className="text-slate-400">Create</span>
+                      <span
+                        className="px-1.5 py-0.5 rounded text-[10px] text-white"
+                        style={{ backgroundColor: "#fb7185" }}
+                      >
+                        {search}
+                      </span>
+                    </button>
+                  )}
+              </div>
+            </div>
+          </>,
+          document.body
+        )}
+    </>
+  );
+};
+
 function CellInput({
   value,
   type,
   onChange,
+  options,
+  onAddOption,
 }: {
   value: CellValue;
   type: ColumnType;
   onChange: (val: CellValue) => void;
+  options?: { id: string; label: string; color: string }[];
+  onAddOption?: (opt: { id: string; label: string; color: string }) => void;
 }) {
   if (type === "number") {
     return (
       <input
         type="number"
         className="w-full h-full px-3 py-1.5 bg-transparent outline-none text-sm text-slate-700 placeholder:text-slate-300"
-        value={value ?? ""}
+        value={value ? String(value) : ""}
         onChange={(e) => onChange(Number(e.target.value))}
         placeholder="Empty"
       />
     );
   }
+
   if (type === "select") {
-    // Basic select implementation - could be enhanced with a real badge system
+    return <SelectCell value={value} options={options} onChange={onChange} />;
+  }
+
+  if (type === "multi-select") {
     return (
-      <input
-        className="w-full h-full px-3 py-1.5 bg-transparent outline-none text-sm text-slate-700 placeholder:text-slate-300"
-        value={value ?? ""}
-        placeholder="Convert to Select..."
-        onChange={(e) => onChange(e.target.value)}
+      <MultiSelectCell
+        value={value}
+        options={options}
+        onChange={onChange}
+        onAddOption={onAddOption}
       />
     );
   }
+
   return (
     <input
       type="text"
       className="w-full h-full px-3 py-1.5 bg-transparent outline-none text-sm text-slate-700 placeholder:text-slate-300"
-      value={value ?? ""}
+      value={value ? String(value) : ""}
       onChange={(e) => onChange(e.target.value)}
       placeholder="Empty"
     />

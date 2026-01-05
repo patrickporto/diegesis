@@ -45,6 +45,7 @@
     "@tiptap/starter-kit": "^3.14.0",
     "@types/mathjs": "^9.4.1",
     "mathjs": "^15.1.0",
+    "minisearch": "^7.2.0",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
     "react-hotkeys-hook": "^5.2.1",

@@ -60,6 +60,22 @@ export function TableHeader({
             />
           </svg>
         );
+      case "multi-select":
+        return (
+          <svg
+            className="w-3 h-3 text-slate-400"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"
+            />
+          </svg>
+        );
       case "date":
         return (
           <svg
@@ -134,7 +150,14 @@ export function TableHeader({
                 <div className="text-[10px] font-bold text-slate-400 px-2 py-1 uppercase tracking-wider">
                   Type
                 </div>
-                {["text", "number", "select", "date", "formula"].map((t) => (
+                {[
+                  "text",
+                  "number",
+                  "select",
+                  "multi-select",
+                  "date",
+                  "formula",
+                ].map((t) => (
                   <button
                     key={t}
                     onClick={() => {
@@ -169,6 +192,105 @@ export function TableHeader({
                   <div className="text-[10px] text-slate-400 mt-1">
                     Variables corresponds to column names (case-insensitive).
                   </div>
+                </div>
+              )}
+
+              {(column.type === "select" || column.type === "multi-select") && (
+                <div className="p-2 border-t border-slate-100 bg-slate-50">
+                  <div className="text-[10px] font-bold text-slate-500 mb-1">
+                    Options
+                  </div>
+                  <div className="space-y-1 mb-2 max-h-32 overflow-y-auto">
+                    {(column.options || []).map((option, idx) => (
+                      <div
+                        key={option.id || idx}
+                        className="flex items-center gap-1 group/opt"
+                      >
+                        <div
+                          className="w-3 h-3 rounded-full flex-shrink-0"
+                          style={{ backgroundColor: option.color }}
+                        />
+                        <input
+                          className="flex-1 px-1.5 py-0.5 text-xs border border-slate-200 rounded bg-white shadow-sm"
+                          value={option.label}
+                          onChange={(e) => {
+                            const newOptions = [...(column.options || [])];
+                            newOptions[idx] = {
+                              ...newOptions[idx],
+                              label: e.target.value,
+                            };
+                            onUpdate({ options: newOptions });
+                          }}
+                        />
+                        <button
+                          onClick={() => {
+                            const newOptions = (column.options || []).filter(
+                              (_, i) => i !== idx
+                            );
+                            onUpdate({ options: newOptions });
+                          }}
+                          className="p-0.5 text-slate-400 hover:text-red-500 opacity-0 group-hover/opt:opacity-100"
+                        >
+                          <svg
+                            className="w-3 h-3"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M6 18L18 6M6 6l12 12"
+                            />
+                          </svg>
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                  <button
+                    onClick={() => {
+                      const colors = [
+                        "#fca5a5",
+                        "#fdba74",
+                        "#fcd34d",
+                        "#bef264",
+                        "#86efac",
+                        "#6ee7b7",
+                        "#67e8f9",
+                        "#93c5fd",
+                        "#a5b4fc",
+                        "#c4b5fd",
+                        "#d8b4fe",
+                        "#f0abfc",
+                        "#fda4af",
+                      ];
+                      const newOption = {
+                        id: crypto.randomUUID(),
+                        label: "New Option",
+                        color:
+                          colors[Math.floor(Math.random() * colors.length)],
+                      };
+                      const newOptions = [...(column.options || []), newOption];
+                      onUpdate({ options: newOptions });
+                    }}
+                    className="w-full px-2 py-1 text-xs text-sky-600 bg-white border border-dashed border-sky-300 rounded hover:bg-sky-50 flex items-center justify-center gap-1"
+                  >
+                    <svg
+                      className="w-3 h-3"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M12 4v16m8-8H4"
+                      />
+                    </svg>
+                    Add Option
+                  </button>
                 </div>
               )}
 

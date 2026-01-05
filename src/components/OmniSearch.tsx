@@ -1,9 +1,21 @@
+import MiniSearch from "minisearch";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
+import * as Y from "yjs";
 
 import { useFileSystem } from "@/contexts/FileSystemContext";
 import { useNotes } from "@/contexts/NotesContext";
-import { BM25SearchEngine, SearchDocument, SearchResult } from "@/lib/bm25";
+
+import { CellValue } from "./TableEditor/types";
+
+interface SearchResult {
+  id: string;
+  name: string;
+  score: number;
+  matchType: "name" | "content";
+  snippet?: string;
+  type?: string;
+}
 
 export function OmniSearch({
   isOpen,
@@ -20,23 +32,65 @@ export function OmniSearch({
   const inputRef = useRef<HTMLInputElement>(null);
   const resultRefs = useRef<Map<number, HTMLButtonElement>>(new Map());
 
-  // Build BM25 search engine with memoized documents
-  const searchEngine = useMemo(() => {
-    const engine = new BM25SearchEngine();
-    const documents: SearchDocument[] = fileTree
-      .filter((node) => node.type === "text")
+  // MiniSearch setup
+  const miniSearch = useMemo(() => {
+    return new MiniSearch({
+      fields: ["name", "content"], // fields to index for full-text search
+      storeFields: ["name", "type", "content"], // fields to return with search results
+      searchOptions: {
+        boost: { name: 2 },
+        fuzzy: 0.2,
+        prefix: true,
+      },
+    });
+  }, []);
+
+  // Sync MiniSearch with fileTree and doc
+  useEffect(() => {
+    const stripTags = (xml: string) => {
+      return xml
+        .replace(/<[^>]*>/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+    };
+
+    const documents = fileTree
+      .filter((node) => node.type === "text" || node.type === "table")
       .map((node) => {
-        const fragment = doc.getXmlFragment(`content-${node.id}`);
-        const content = fragment.toString();
+        let content = "";
+        if (node.type === "text") {
+          const fragment = doc.getXmlFragment(`content-${node.id}`);
+          content = stripTags(fragment.toString());
+        } else if (node.type === "table") {
+          const rowsArray = doc.getArray(`rows-${node.id}`);
+          content = rowsArray
+            .toArray()
+            .map((row) => {
+              // Yjs Map toJSON problem
+              const rowMap = row as Y.Map<CellValue>;
+              const data =
+                typeof rowMap.toJSON === "function"
+                  ? (rowMap.toJSON() as Record<string, CellValue>)
+                  : (row as Record<string, CellValue>);
+              return Object.entries(data)
+                .filter(([key, v]) => key !== "id" && v != null)
+                .map(([, v]) => v)
+                .join(" ");
+            })
+            .join(" ");
+        }
+
         return {
           id: node.id,
           name: node.name,
+          type: node.type,
           content,
         };
       });
-    engine.buildIndex(documents);
-    return engine;
-  }, [fileTree, doc]);
+
+    miniSearch.removeAll();
+    miniSearch.addAll(documents);
+  }, [miniSearch, fileTree, doc]);
 
   // Reset state when modal closes
   useEffect(() => {
@@ -50,17 +104,51 @@ export function OmniSearch({
     setTimeout(() => inputRef.current?.focus(), 0);
   }, [isOpen]);
 
-  // Perform BM25+ search when query changes
+  // Perform search
   useEffect(() => {
-    if (!query) {
+    if (!query.trim()) {
       setResults([]);
       setSelectedIndex(0);
       return;
     }
-    const searchResults = searchEngine.search(query);
-    setResults(searchResults);
+
+    const searchResults = miniSearch.search(query).map((result) => {
+      // Find where the match occurred for matchType
+      const matchType: "name" | "content" =
+        Object.prototype.hasOwnProperty.call(result.match, "name")
+          ? "name"
+          : "content";
+
+      // Simple snippet generation
+      let snippet = "";
+      if (result.content) {
+        const content = result.content as string;
+        const index = content.toLowerCase().indexOf(query.toLowerCase());
+        if (index !== -1) {
+          const start = Math.max(0, index - 30);
+          const end = Math.min(content.length, index + query.length + 50);
+          snippet =
+            (start > 0 ? "..." : "") +
+            content.slice(start, end) +
+            (end < content.length ? "..." : "");
+        } else {
+          snippet = content.slice(0, 80) + (content.length > 80 ? "..." : "");
+        }
+      }
+
+      return {
+        id: result.id,
+        name: result.name,
+        score: result.score,
+        type: result.type,
+        matchType,
+        snippet,
+      };
+    });
+
+    setResults(searchResults as SearchResult[]);
     setSelectedIndex(0);
-  }, [query, searchEngine]);
+  }, [query, miniSearch]);
 
   // Scroll selected item into view
   useEffect(() => {
@@ -178,7 +266,11 @@ export function OmniSearch({
                         strokeLinecap="round"
                         strokeLinejoin="round"
                         strokeWidth={2}
-                        d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 2H7a2 2 0 00-2 2v14a2 2 0 002 2z"
+                        d={
+                          result.type === "table"
+                            ? "M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"
+                            : "M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 2H7a2 2 0 00-2 2v14a2 2 0 002 2z"
+                        }
                       />
                     </svg>
                     <span className="font-medium text-slate-700">
@@ -194,7 +286,7 @@ export function OmniSearch({
                     </span>
                   </div>
                   {result.snippet && (
-                    <p className="text-xs text-slate-500 pl-6 font-mono truncate">
+                    <p className="text-xs text-slate-500 pl-6 font-sans truncate">
                       {result.snippet}
                     </p>
                   )}

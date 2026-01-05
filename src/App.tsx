@@ -36,12 +36,12 @@ function MainLayout() {
 
   // Global hotkey for search (Ctrl+K / Cmd+K)
   useHotkeys(
-    "mod+f",
+    ["mod+k", "mod+f"],
     (e) => {
       e.preventDefault();
       setIsSearchOpen(true);
     },
-    { enableOnFormTags: true }
+    { enableOnFormTags: true, enableOnContentEditable: true }
   );
 
   const getSyncIcon = () => {
