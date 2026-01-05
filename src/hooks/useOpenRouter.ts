@@ -14,7 +14,7 @@ export interface Message {
   timestamp: Date;
 }
 
-const DEFAULT_MODEL = "google/gemini-2.0-flash-exp:free";
+const DEFAULT_MODEL = "z-ai/glm-4.5-air:free";
 
 const SYSTEM_INSTRUCTION = `You are Diegesis AI, an intelligent assistant integrated into a block-based note-taking app.
 Your goal is to help users manage their personal knowledge base, create content, and organize files.
@@ -173,7 +173,7 @@ export function useOpenRouter(editor?: BlockNoteEditor | null) {
             throw new Error("No response from model");
           }
 
-          // Check for tool calls
+          // Check for tool calls (OpenAI format)
           if (message.tool_calls && message.tool_calls.length > 0) {
             // Add assistant message with tool calls
             openRouterMessages.push({
@@ -212,6 +212,75 @@ export function useOpenRouter(editor?: BlockNoteEditor | null) {
             }
 
             // Continue loop to get final response
+            continue;
+          }
+
+          // Fallback: Parse XML-style tool calls (for models like GLM)
+          const responseContent = message.content || "";
+          const xmlToolRegex = /<(\w+)(?:\s+([^>]*))?>(?:([\s\S]*?)<\/\1>)?/g;
+          const xmlToolMatches = [...responseContent.matchAll(xmlToolRegex)];
+
+          // Known tool names to look for
+          const knownTools = [
+            "insert_note_content",
+            "read_document",
+            "clear_document",
+            "create_file",
+            "create_folder",
+            "rename_item",
+            "delete_item",
+            "move_item",
+            "list_files",
+          ];
+
+          const foundXmlTools = xmlToolMatches.filter((match) =>
+            knownTools.includes(match[1])
+          );
+
+          if (foundXmlTools.length > 0) {
+            // Execute XML-style tool calls
+            const toolResults: string[] = [];
+
+            for (const toolMatch of foundXmlTools) {
+              const toolName = toolMatch[1];
+              const toolContent = toolMatch[3] || "";
+
+              // Parse arguments from content or attributes
+              let args: Record<string, unknown> = {};
+              if (toolContent.trim()) {
+                // Try to parse as JSON or use as content
+                try {
+                  args = JSON.parse(toolContent);
+                } catch {
+                  args = { content: toolContent.trim() };
+                }
+              }
+
+              let result = "Error: Editor not connected.";
+              if (editor) {
+                result = await executeOpenRouterTool(
+                  toolName,
+                  args,
+                  editor,
+                  fileSystem
+                );
+              }
+              toolResults.push(`[${toolName}]: ${result}`);
+            }
+
+            // Add the tool results to the message and continue
+            openRouterMessages.push({
+              role: "assistant",
+              content: responseContent,
+            });
+
+            openRouterMessages.push({
+              role: "user",
+              content: `Tool execution results:\n${toolResults.join(
+                "\n"
+              )}\n\nPlease provide a final response to the user.`,
+            });
+
             continue;
           } else {
             // No tool calls, final response
