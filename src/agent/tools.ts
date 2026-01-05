@@ -110,6 +110,25 @@ export const GEMINI_TOOLS = [
         },
       },
       {
+        name: "move_item",
+        description: "Moves a file or folder to a new parent folder.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            id: {
+              type: "STRING",
+              description: "The ID of the file or folder to move.",
+            },
+            newParentId: {
+              type: "STRING",
+              description:
+                "The ID of the new parent folder. Use null to move to root.",
+            },
+          },
+          required: ["id", "newParentId"],
+        },
+      },
+      {
         name: "list_files",
         description: "Lists all files and folders in the file system.",
         parameters: {
@@ -202,6 +221,14 @@ export async function executeTool(
         const { id, newName } = args;
         fileSystem.renameItem(id, newName);
         return `Item renamed to: ${newName}`;
+      }
+
+      case "move_item": {
+        if (!fileSystem)
+          return "Error: File system not available for this tool.";
+        const { id, newParentId } = args;
+        fileSystem.moveItem(id, newParentId as string | null);
+        return `Item moved to parent: ${newParentId}`;
       }
 
       case "delete_item": {
