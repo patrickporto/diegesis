@@ -26,6 +26,8 @@ export function TableEditor({ fileId, doc }: TableEditorProps) {
   // Local State
   const [columns, setColumns] = useState<ColumnSchema[]>([]);
   const [rows, setRows] = useState<RowValues[]>([]);
+  const [draggedColumnIdx, setDraggedColumnIdx] = useState<number | null>(null);
+  const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
 
   // Observer for Schema
   useEffect(() => {
@@ -116,6 +118,40 @@ export function TableEditor({ fileId, doc }: TableEditorProps) {
     });
   };
 
+  const reorderColumns = (fromIdx: number, toIdx: number) => {
+    if (fromIdx === toIdx) return;
+    doc.transact(() => {
+      const col = schemaArray.get(fromIdx);
+      schemaArray.delete(fromIdx, 1);
+      schemaArray.insert(toIdx, [col]);
+    });
+  };
+
+  // Drag and Drop Handlers
+  const handleDragStart = (idx: number) => {
+    setDraggedColumnIdx(idx);
+  };
+
+  const handleDragOver = (e: React.DragEvent, idx: number) => {
+    e.preventDefault();
+    if (draggedColumnIdx !== null && draggedColumnIdx !== idx) {
+      setDragOverIdx(idx);
+    }
+  };
+
+  const handleDrop = (idx: number) => {
+    if (draggedColumnIdx !== null && draggedColumnIdx !== idx) {
+      reorderColumns(draggedColumnIdx, idx);
+    }
+    setDraggedColumnIdx(null);
+    setDragOverIdx(null);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedColumnIdx(null);
+    setDragOverIdx(null);
+  };
+
   // Rendering Support
   const getCellValue = (row: RowValues, col: ColumnSchema) => {
     if (col.type === "formula") {
@@ -134,9 +170,22 @@ export function TableEditor({ fileId, doc }: TableEditorProps) {
                 {columns.map((col, idx) => (
                   <th
                     key={col.id}
-                    className={`text-left bg-white group border-r border-slate-100 last:border-r-0 ${
+                    draggable
+                    onDragStart={() => handleDragStart(idx)}
+                    onDragOver={(e) => handleDragOver(e, idx)}
+                    onDrop={() => handleDrop(idx)}
+                    onDragEnd={handleDragEnd}
+                    className={`text-left bg-white group border-r border-slate-100 last:border-r-0 cursor-grab active:cursor-grabbing transition-all duration-200 select-none ${
                       idx === 0
                         ? "sticky left-0 z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]"
+                        : ""
+                    } ${
+                      dragOverIdx === idx
+                        ? "bg-slate-50 !border-l-sky-500 !border-l-2"
+                        : ""
+                    } ${
+                      draggedColumnIdx === idx
+                        ? "opacity-30 bg-slate-50 scale-95"
                         : ""
                     }`}
                     style={{ minWidth: 150, width: col.width }}

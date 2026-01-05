@@ -4,6 +4,7 @@ import { useHotkeys } from "react-hotkeys-hook";
 
 import { AppSidebar } from "@/components/AppSidebar";
 import { Editor } from "@/components/Editor";
+import { OfflineBanner } from "@/components/OfflineBanner";
 import { OmniSearch } from "@/components/OmniSearch";
 import { Sidebar } from "@/components/Sidebar";
 import {
@@ -289,6 +290,7 @@ function MainLayout() {
         isOpen={isSearchOpen}
         onClose={() => setIsSearchOpen(false)}
       />
+      <OfflineBanner />
     </div>
   );
 }
