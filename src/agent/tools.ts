@@ -195,16 +195,19 @@ export async function executeTool(
         return "Document cleared.";
       }
 
-      case "create_file": {
+      case "create_document": {
         if (!fileSystem)
           return "Error: File system not available for this tool.";
-        const { name, parentId } = args as { name: string; parentId?: string };
-        const id = fileSystem.createFile(name, parentId || null);
-        // Automatically open the new file if possible?
+        const { title, parentId } = args as {
+          title: string;
+          parentId?: string;
+        };
+        const id = fileSystem.createFile(title, parentId || null);
+        // Automatically open the new file if possible
         if (id && fileSystem.setActiveFileId) {
           fileSystem.setActiveFileId(id);
         }
-        return `File created with ID: ${id}`;
+        return `Document created with ID: ${id}. The document is now open. You can now use 'insert_note_content' to add content to it.`;
       }
 
       case "create_folder": {
@@ -257,6 +260,16 @@ export async function executeTool(
           return "No files or folders in the system. The file system is empty.";
         }
         return `Files in system:\n${files.join("\n")}`;
+      }
+
+      case "get_active_document": {
+        if (!fileSystem)
+          return "Error: File system not available for this tool.";
+        if (!fileSystem.activeFileId) return "No document is currently open.";
+        const activeFile = fileSystem.fileMap.get(fileSystem.activeFileId);
+        if (!activeFile)
+          return "Error: Active document found in state but not in the file system.";
+        return `Active Document: ${activeFile.name} (ID: ${activeFile.id})`;
       }
 
       default:
@@ -316,14 +329,14 @@ export const OPENROUTER_TOOLS = [
   {
     type: "function",
     function: {
-      name: "create_file",
-      description: "Creates a new file (note) in the file system.",
+      name: "create_document",
+      description: "Creates a new document (note) in the file system.",
       parameters: {
         type: "object",
         properties: {
-          name: {
+          title: {
             type: "string",
-            description: "The name of the file to create.",
+            description: "The title of the document to create.",
           },
           parentId: {
             type: "string",
@@ -331,7 +344,7 @@ export const OPENROUTER_TOOLS = [
               "Optional ID of the parent folder. If not provided, creates in root.",
           },
         },
-        required: ["name"],
+        required: ["title"],
       },
     },
   },
@@ -423,6 +436,19 @@ export const OPENROUTER_TOOLS = [
     function: {
       name: "list_files",
       description: "Lists all files and folders in the file system.",
+      parameters: {
+        type: "object",
+        properties: {},
+        required: [],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_active_document",
+      description:
+        "Returns the name and ID of the document currently open in the editor.",
       parameters: {
         type: "object",
         properties: {},

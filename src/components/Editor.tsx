@@ -3,6 +3,7 @@ import "@blocknote/mantine/style.css";
 
 import { BlockNoteView } from "@blocknote/mantine";
 import { useCreateBlockNote } from "@blocknote/react";
+import { useEffect } from "react";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { IndexeddbPersistence } from "y-indexeddb";
 import * as Y from "yjs";
@@ -47,6 +48,7 @@ function ActiveEditor({
   doc: Y.Doc;
   provider: IndexeddbPersistence | null;
 }) {
+  const { setEditor } = useNotes();
   const editor = useCreateBlockNote({
     collaboration: {
       fragment: doc.getXmlFragment(`content-${fileId}`),
@@ -58,6 +60,13 @@ function ActiveEditor({
       provider: (provider ?? undefined) as any,
     },
   });
+
+  useEffect(() => {
+    if (editor) {
+      setEditor(editor);
+      return () => setEditor(null);
+    }
+  }, [editor, setEditor]);
 
   if (!editor) return <div>Loading...</div>;
 

@@ -1,5 +1,5 @@
 import { BlockNoteEditor } from "@blocknote/core";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { uuidv7 } from "uuidv7";
 
 import { executeOpenRouterTool, OPENROUTER_TOOLS } from "@/agent/tools";
@@ -14,25 +14,19 @@ export interface Message {
   timestamp: Date;
 }
 
-const DEFAULT_MODEL = "z-ai/glm-4.5-air:free";
+const DEFAULT_MODEL = "google/gemini-2.5-flash-lite";
 
-const SYSTEM_INSTRUCTION = `You are Diegesis AI, an intelligent assistant integrated into a block-based note-taking app.
-Your goal is to help users manage their personal knowledge base, create content, and organize files.
+const SYSTEM_INSTRUCTION = `You are Diegesis AI.
+You help users manage notes and files.
+You MUST use the tools provided for any action.
+- To create a note: create_document(title: string)
+- To add text to the open note: insert_note_content(content: string)
+- To create a note with content, call create_document THEN insert_note_content.
+- To list files: list_files()
 
-You have access to a set of tools to:
-- Manage the file system (create, delete, rename, move files/folders).
-- Interact with the active editor (read content, insert notes, clear document).
-
-CRITICAL INSTRUCTION - THINKING PROCESS:
-For EVERY user request, you MUST perform a deep step-by-step reasoning before taking action or responding.
-1. Analyze the user's intent.
-2. Check which tools are available and relevant.
-3. Formulate a plan.
-4. Verify if the plan is safe and correct.
-
-Output your reasoning process wrapped in <thinking>...</thinking> tags at the very beginning of your response.
-After the thinking block, perform the necessary tool calls or provide the final answer.
-Do not be verbose in the final answer if the tool execution is self-explanatory, but always be helpful.`;
+Thinking process:
+- Use <thinking>...</thinking> for reasoning.
+- After thinking, emit tool calls OR a final response.`;
 
 interface OpenRouterMessage {
   role: "system" | "user" | "assistant" | "tool";
@@ -58,6 +52,12 @@ export function useOpenRouter(editor?: BlockNoteEditor | null) {
   });
 
   const fileSystem = useFileSystem();
+  const editorRef = useRef<BlockNoteEditor | null>(editor || null);
+
+  // Sync ref with prop
+  useEffect(() => {
+    editorRef.current = editor || null;
+  }, [editor]);
 
   const setApiKey = useCallback((key: string) => {
     setApiKeyState(key);
@@ -117,10 +117,8 @@ export function useOpenRouter(editor?: BlockNoteEditor | null) {
             stream: true,
           };
 
-          // Only add tools if editor is available
-          if (editor) {
-            body.tools = OPENROUTER_TOOLS;
-          }
+          // Always provide tools - they will return error messages if editor/fs is missing
+          body.tools = OPENROUTER_TOOLS;
 
           const response = await fetch(
             "https://openrouter.ai/api/v1/chat/completions",
@@ -256,14 +254,53 @@ export function useOpenRouter(editor?: BlockNoteEditor | null) {
                 args = {};
               }
 
-              let result = "Error: Editor not connected.";
-              if (editor) {
-                result = await executeOpenRouterTool(
-                  functionName,
-                  args,
-                  editor,
-                  fileSystem
+              // Robust wait for editor if it's not yet connected (e.g. right after creation)
+              let currentEditor = editorRef.current;
+              if (
+                !currentEditor &&
+                (functionName === "insert_note_content" ||
+                  functionName === "read_document" ||
+                  functionName === "clear_document")
+              ) {
+                console.log(
+                  `useOpenRouter: Editor missing for ${functionName}, waiting...`
                 );
+                for (let i = 0; i < 15; i++) {
+                  await new Promise((r) => setTimeout(r, 200));
+                  if (editorRef.current) {
+                    console.log(
+                      `useOpenRouter: Editor connected after ${i + 1} retries`
+                    );
+                    currentEditor = editorRef.current;
+                    break;
+                  }
+                }
+              }
+
+              if (
+                !currentEditor &&
+                (functionName === "insert_note_content" ||
+                  functionName === "read_document")
+              ) {
+                console.warn(
+                  `useOpenRouter: Proceeding with ${functionName} despite null editor (might fail)`
+                );
+              }
+
+              const result = await executeOpenRouterTool(
+                functionName,
+                args,
+                currentEditor,
+                fileSystem
+              );
+
+              // Small delay to allow BlockNote/React to sync state if a document was created
+              if (
+                functionName === "create_document" ||
+                functionName === "move_item" ||
+                functionName === "delete_item"
+              ) {
+                await new Promise((resolve) => setTimeout(resolve, 500));
               }
 
               openRouterMessages.push({
@@ -279,6 +316,100 @@ export function useOpenRouter(editor?: BlockNoteEditor | null) {
 
           // Fallback: Parse XML-style tool calls (for models like GLM)
           const responseContent = accumulatedContent;
+
+          // First try to parse <tool> tags with nested content
+          const toolTagRegex = /<tool>\s*(\w+)\s*(\{[\s\S]*?\})\s*<\/tool>/g;
+          const toolTagMatches = [...responseContent.matchAll(toolTagRegex)];
+
+          if (toolTagMatches.length > 0) {
+            // Remove streaming message
+            if (hasAddedMessage) {
+              setMessages((prev) =>
+                prev.filter((m) => m.id !== streamingMessageId)
+              );
+            }
+
+            const toolResults: string[] = [];
+
+            for (const toolMatch of toolTagMatches) {
+              const toolName = toolMatch[1];
+              const toolArgsStr = toolMatch[2];
+
+              let args: Record<string, unknown> = {};
+              try {
+                args = JSON.parse(toolArgsStr);
+              } catch {
+                args = {};
+              }
+
+              // Robust wait for editor if it's not yet connected
+              let currentEditor = editorRef.current;
+              const toolsNeedingEditor = [
+                "insert_note_content",
+                "read_document",
+                "clear_document",
+              ];
+              if (!currentEditor && toolsNeedingEditor.includes(toolName)) {
+                console.log(
+                  `useOpenRouter: Editor missing for ${toolName} (XML), waiting...`
+                );
+                for (let i = 0; i < 15; i++) {
+                  await new Promise((r) => setTimeout(r, 200));
+                  if (editorRef.current) {
+                    console.log(
+                      `useOpenRouter: Editor connected after ${i + 1} retries`
+                    );
+                    currentEditor = editorRef.current;
+                    break;
+                  }
+                }
+              }
+
+              if (
+                !currentEditor &&
+                (toolName === "insert_note_content" ||
+                  toolName === "read_document")
+              ) {
+                console.warn(
+                  `useOpenRouter: Proceeding with ${toolName} despite null editor (might fail)`
+                );
+              }
+
+              const result = await executeOpenRouterTool(
+                toolName,
+                args,
+                currentEditor,
+                fileSystem
+              );
+
+              // Small delay to allow BlockNote/React to sync state if a document was created
+              if (
+                toolName === "create_document" ||
+                toolName === "move_item" ||
+                toolName === "delete_item"
+              ) {
+                await new Promise((resolve) => setTimeout(resolve, 500));
+              }
+
+              toolResults.push(`[${toolName}]: ${result}`);
+            }
+
+            openRouterMessages.push({
+              role: "assistant",
+              content: responseContent,
+            });
+
+            openRouterMessages.push({
+              role: "user",
+              content: `Tool execution results:\n${toolResults.join(
+                "\n"
+              )}\n\nPlease provide a final response to the user.`,
+            });
+
+            continue;
+          }
+
+          // Also try direct XML tags like <create_file>...</create_file>
           const xmlToolRegex = /<(\w+)(?:\s+([^>]*))?>(?:([\s\S]*?)<\/\1>)?/g;
           const xmlToolMatches = [...responseContent.matchAll(xmlToolRegex)];
 
@@ -286,12 +417,13 @@ export function useOpenRouter(editor?: BlockNoteEditor | null) {
             "insert_note_content",
             "read_document",
             "clear_document",
-            "create_file",
+            "create_document",
             "create_folder",
             "rename_item",
             "delete_item",
             "move_item",
             "list_files",
+            "get_active_document",
           ];
 
           const foundXmlTools = xmlToolMatches.filter((match) =>
@@ -321,15 +453,55 @@ export function useOpenRouter(editor?: BlockNoteEditor | null) {
                 }
               }
 
-              let result = "Error: Editor not connected.";
-              if (editor) {
-                result = await executeOpenRouterTool(
-                  toolName,
-                  args,
-                  editor,
-                  fileSystem
+              // Robust wait for editor if it's not yet connected
+              let currentEditor = editorRef.current;
+              const toolsNeedingEditor = [
+                "insert_note_content",
+                "read_document",
+                "clear_document",
+              ];
+              if (!currentEditor && toolsNeedingEditor.includes(toolName)) {
+                console.log(
+                  `useOpenRouter: Editor missing for ${toolName} (Tag), waiting...`
+                );
+                for (let i = 0; i < 15; i++) {
+                  await new Promise((r) => setTimeout(r, 200));
+                  if (editorRef.current) {
+                    console.log(
+                      `useOpenRouter: Editor connected after ${i + 1} retries`
+                    );
+                    currentEditor = editorRef.current;
+                    break;
+                  }
+                }
+              }
+
+              if (
+                !currentEditor &&
+                (toolName === "insert_note_content" ||
+                  toolName === "read_document")
+              ) {
+                console.warn(
+                  `useOpenRouter: Proceeding with ${toolName} despite null editor (might fail)`
                 );
               }
+
+              const result = await executeOpenRouterTool(
+                toolName,
+                args,
+                currentEditor,
+                fileSystem
+              );
+
+              // Small delay to allow BlockNote/React to sync state if a document was created
+              if (
+                toolName === "create_document" ||
+                toolName === "move_item" ||
+                toolName === "delete_item"
+              ) {
+                await new Promise((resolve) => setTimeout(resolve, 500));
+              }
+
               toolResults.push(`[${toolName}]: ${result}`);
             }
 
@@ -368,7 +540,7 @@ export function useOpenRouter(editor?: BlockNoteEditor | null) {
         setIsLoading(false);
       }
     },
-    [messages, apiKey, editor, fileSystem]
+    [messages, apiKey, fileSystem]
   );
 
   const clearMessages = useCallback(() => {

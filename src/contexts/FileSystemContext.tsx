@@ -51,6 +51,7 @@ export interface FileSystemContextType {
   updateTagName: (color: string, newName: string) => void;
   activeFileId: string | null;
   setActiveFileId: (id: string | null) => void;
+  doc: Y.Doc;
 }
 
 const FileSystemContext = createContext<FileSystemContextType | null>(null);
@@ -262,6 +263,7 @@ export function FileSystemProvider({ children }: { children: ReactNode }) {
         tagDefs,
         activeFileId,
         setActiveFileId,
+        doc,
       }}
     >
       {children}

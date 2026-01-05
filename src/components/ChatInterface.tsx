@@ -11,23 +11,23 @@ interface ChatInterfaceProps {
 
 // Helper to parse thinking blocks and render markdown
 function ThinkingBlock({ text }: { text: string }) {
-  // Split by thinking tag
-  const parts = text.split(/(<thinking>[\s\S]*?<\/thinking>)/g);
+  // Split by complete thinking tags OR open thinking tags (streaming)
+  const parts = text.split(/(<thinking>[\s\S]*?(?:<\/thinking>|$))/g);
 
   return (
     <>
       {parts.map((part, index) => {
-        if (part.startsWith("<thinking>") && part.endsWith("</thinking>")) {
+        // Handle complete or streaming thinking block
+        if (part.startsWith("<thinking>")) {
+          const isComplete = part.endsWith("</thinking>");
           const content = part.replace(/<\/?thinking>/g, "").trim();
           return (
-            <details
-              key={index}
-              className="mb-2 group"
-              open={import.meta.env.DEV}
-            >
+            <details key={index} className="mb-2 group" open={true}>
               <summary className="text-xs font-medium text-slate-500 cursor-pointer select-none list-none flex items-center gap-1 hover:text-slate-700">
                 <svg
-                  className="w-3 h-3 transition-transform group-open:rotate-90"
+                  className={`w-3 h-3 transition-transform group-open:rotate-90 ${
+                    !isComplete ? "animate-pulse" : ""
+                  }`}
                   fill="none"
                   viewBox="0 0 24 24"
                   stroke="currentColor"
@@ -39,14 +39,29 @@ function ThinkingBlock({ text }: { text: string }) {
                     d="M9 5l7 7-7 7"
                   />
                 </svg>
-                Thinking Process
+                {isComplete ? "Thinking Process" : "Thinking..."}
               </summary>
               <div className="mt-1 pl-4 border-l-2 border-slate-200 text-xs text-slate-500 font-mono whitespace-pre-wrap">
                 {content}
+                {!isComplete && <span className="animate-pulse">▌</span>}
               </div>
             </details>
           );
         }
+
+        // Handle tool tags during streaming (show as code block)
+        if (part.includes("<tool>") && !part.includes("</tool>")) {
+          return (
+            <div
+              key={index}
+              className="bg-slate-100 rounded p-2 text-xs font-mono text-slate-600"
+            >
+              <span className="text-slate-400">Executing tool...</span>
+              <span className="animate-pulse ml-1">▌</span>
+            </div>
+          );
+        }
+
         if (!part.trim()) return null;
         // Render other content as markdown
         return (
