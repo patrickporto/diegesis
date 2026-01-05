@@ -1,4 +1,3 @@
-import { useGoogleLogin } from "@react-oauth/google";
 import { useCallback, useEffect, useRef, useState } from "react";
 import * as Y from "yjs";
 
@@ -71,45 +70,9 @@ export const useGoogleDrive = (doc?: Y.Doc) => {
       ? `${window.location.origin}${window.location.pathname}`
       : "";
 
-  const login = useGoogleLogin({
-    onSuccess: async (tokenResponse) => {
-      console.log("Login success, token received:", tokenResponse);
-      const token = tokenResponse.access_token;
-      setAccessToken(token);
-      localStorage.setItem("google_access_token", token);
-      setIsSignedIn(true);
-
-      // Fetch user info
-      try {
-        const userInfoResponse = await fetch(
-          "https://www.googleapis.com/oauth2/v3/userinfo",
-          {
-            headers: { Authorization: `Bearer ${token}` },
-          }
-        );
-        const userInfo = await userInfoResponse.json();
-        console.log("User info fetched:", userInfo);
-        setUser({
-          name: userInfo.name,
-          email: userInfo.email,
-          imageUrl: userInfo.picture,
-        });
-      } catch (error) {
-        console.error("Failed to fetch user info:", error);
-      }
-    },
-    onError: (error) => {
-      console.error("Login failed:", error);
-      setSyncStatus("error");
-    },
-    onNonOAuthError: (error) => {
-      console.error("Non-OAuth error:", error);
-    },
-    scope: "openid profile email https://www.googleapis.com/auth/drive.file",
-    flow: "implicit",
-    ux_mode: "redirect",
-    redirect_uri: redirectUri,
-  });
+  // No longer using useGoogleLogin for the trigger because it doesn't support
+  // ux_mode: 'redirect' for implicit flow (TokenClient) in the new GSI SDK.
+  // We'll use a manual redirect instead, and the existing useEffect will handle the return.
 
   // Handle redirect callback
   useEffect(() => {
@@ -149,7 +112,15 @@ export const useGoogleDrive = (doc?: Y.Doc) => {
   }, []);
 
   const handleAuthClick = () => {
-    login();
+    // Manually trigger redirect for implicit flow
+    const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+    const scopes =
+      "openid profile email https://www.googleapis.com/auth/drive.file";
+    const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${encodeURIComponent(
+      redirectUri
+    )}&response_type=token&scope=${encodeURIComponent(scopes)}&state=main`;
+
+    window.location.assign(authUrl);
   };
 
   const handleSignOutClick = () => {
