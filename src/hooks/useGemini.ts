@@ -2,6 +2,7 @@ import { BlockNoteEditor } from "@blocknote/core";
 import { useCallback, useState } from "react";
 
 import { executeTool, GEMINI_TOOLS } from "@/agent/tools";
+import { useFileSystem } from "@/contexts/FileSystemContext";
 
 const STORAGE_KEY = "gemini_api_key";
 
@@ -46,6 +47,8 @@ export function useGemini(editor?: BlockNoteEditor | null) {
   const [apiKey, setApiKeyState] = useState<string>(() => {
     return localStorage.getItem(STORAGE_KEY) || "";
   });
+
+  const fileSystem = useFileSystem();
 
   const setApiKey = useCallback((key: string) => {
     setApiKeyState(key);
@@ -137,7 +140,7 @@ export function useGemini(editor?: BlockNoteEditor | null) {
 
             let result = "Error: Editor not connected.";
             if (editor) {
-              result = await executeTool(name, args, editor);
+              result = await executeTool(name, args, editor, fileSystem);
             }
 
             // Add function response to history
@@ -188,7 +191,7 @@ export function useGemini(editor?: BlockNoteEditor | null) {
         setIsLoading(false);
       }
     },
-    [messages, apiKey, editor]
+    [messages, apiKey, editor, fileSystem]
   );
 
   const clearMessages = useCallback(() => {

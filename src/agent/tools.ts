@@ -1,5 +1,8 @@
 import { BlockNoteEditor } from "@blocknote/core";
 
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { FileSystemContextType } from "@/contexts/FileSystemContext";
+
 export const GEMINI_TOOLS = [
   {
     function_declarations: [
@@ -35,6 +38,85 @@ export const GEMINI_TOOLS = [
           properties: {},
         },
       },
+      {
+        name: "create_file",
+        description: "Creates a new file (note) in the file system.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            name: {
+              type: "STRING",
+              description: "The name of the file to create.",
+            },
+            parentId: {
+              type: "STRING",
+              description:
+                "Optional ID of the parent folder. If not provided, creates in root.",
+            },
+          },
+          required: ["name"],
+        },
+      },
+      {
+        name: "create_folder",
+        description: "Creates a new folder in the file system.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            name: {
+              type: "STRING",
+              description: "The name of the folder to create.",
+            },
+            parentId: {
+              type: "STRING",
+              description:
+                "Optional ID of the parent folder. If not provided, creates in root.",
+            },
+          },
+          required: ["name"],
+        },
+      },
+      {
+        name: "rename_item",
+        description: "Renames an existing file or folder.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            id: {
+              type: "STRING",
+              description: "The ID of the file or folder to rename.",
+            },
+            newName: {
+              type: "STRING",
+              description: "The new name for the item.",
+            },
+          },
+          required: ["id", "newName"],
+        },
+      },
+      {
+        name: "delete_item",
+        description:
+          "Deletes a file or folder. Warning: This action is irreversible.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            id: {
+              type: "STRING",
+              description: "The ID of the file or folder to delete.",
+            },
+          },
+          required: ["id"],
+        },
+      },
+      {
+        name: "list_files",
+        description: "Lists all files and folders in the file system.",
+        parameters: {
+          type: "OBJECT",
+          properties: {},
+        },
+      },
     ],
   },
 ];
@@ -42,37 +124,34 @@ export const GEMINI_TOOLS = [
 export async function executeTool(
   functionName: string,
   args: Record<string, unknown>,
-  editor: BlockNoteEditor
+  editor: BlockNoteEditor | null | undefined, // Editor might be null if we are just doing file ops
+  fileSystem?: FileSystemContextType // We pass the file system context here
 ): Promise<string> {
   console.log(`Executing tool: ${functionName}`, args);
 
   try {
     switch (functionName) {
       case "insert_note_content": {
+        if (!editor) return "Error: No active editor to insert content into.";
         const content = args.content as string;
-        // simplistic markdown conversion or just simple insertion
-        // BlockNote's insertBlocks is widely supported
         const blocks = await editor.tryParseMarkdownToBlocks(content);
-        // Check if document is empty (has only one empty paragraph)
+        // ... (check doc empty logic)
         const isDocEmpty =
           (editor.document.length === 1 &&
-            editor.document[0].content === undefined && // or empty array
+            editor.document[0].content === undefined &&
             (editor.document[0] as unknown as { content: unknown[] }).content
               ?.length === 0) ||
-          (editor.document[0].content as unknown as string) === "" || // Handling BlockNote variations
+          (editor.document[0].content as unknown as string) === "" ||
           JSON.stringify(editor.document[0].content) === "[]";
 
         const currentBlock = editor.getTextCursorPosition().block;
         const index = editor.document.indexOf(currentBlock);
 
         if (isDocEmpty) {
-          // If document is effectively empty, replace the empty block with new content
           editor.replaceBlocks(editor.document, blocks);
         } else if (index !== -1) {
-          // Insert after cursor
           editor.insertBlocks(blocks, currentBlock, "after");
         } else {
-          // Append to end
           const lastBlock = editor.document[editor.document.length - 1];
           if (lastBlock) {
             editor.insertBlocks(blocks, lastBlock, "after");
@@ -84,16 +163,63 @@ export async function executeTool(
       }
 
       case "read_document": {
+        if (!editor) return "Error: No active editor to read.";
         const markdown = await editor.blocksToMarkdownLossy(editor.document);
         return markdown || "(Empty Document)";
       }
 
       case "clear_document": {
+        if (!editor) return "Error: No active editor to clear.";
         const titleBlock = { type: "paragraph", content: "" } as const;
-        // The type needs to match BlockNote's expected input which might satisfy the partial block definition
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         editor.replaceBlocks(editor.document, [titleBlock as any]);
         return "Document cleared.";
+      }
+
+      case "create_file": {
+        if (!fileSystem)
+          return "Error: File system not available for this tool.";
+        const { name, parentId } = args;
+        const id = fileSystem.createFile(name, parentId || null);
+        // Automatically open the new file if possible?
+        if (id && fileSystem.setActiveFileId) {
+          fileSystem.setActiveFileId(id);
+        }
+        return `File created with ID: ${id}`;
+      }
+
+      case "create_folder": {
+        if (!fileSystem)
+          return "Error: File system not available for this tool.";
+        const { name, parentId } = args;
+        const id = fileSystem.createFolder(name, parentId || null);
+        return `Folder created with ID: ${id}`;
+      }
+
+      case "rename_item": {
+        if (!fileSystem)
+          return "Error: File system not available for this tool.";
+        const { id, newName } = args;
+        fileSystem.renameItem(id, newName);
+        return `Item renamed to: ${newName}`;
+      }
+
+      case "delete_item": {
+        if (!fileSystem)
+          return "Error: File system not available for this tool.";
+        const { id } = args;
+        fileSystem.deleteItem(id);
+        return `Item deleted: ${id}`;
+      }
+
+      case "list_files": {
+        if (!fileSystem)
+          return "Error: File system not available for this tool.";
+        const files = fileSystem.fileTree.map(
+          (f: { id: string; name: string; type: string; parentId: string }) =>
+            `- [${f.type}] ${f.name} (ID: ${f.id}, Parent: ${f.parentId})`
+        );
+        return `Files in system:\n${files.join("\n")}`;
       }
 
       default:
