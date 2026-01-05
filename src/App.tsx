@@ -1,8 +1,8 @@
 import { GoogleOAuthProvider } from "@react-oauth/google";
 import { useEffect, useState } from "react";
 
+import { AppSidebar } from "@/components/AppSidebar";
 import { Editor } from "@/components/Editor";
-import { FileTree } from "@/components/FileTree";
 import { OmniSearch } from "@/components/OmniSearch";
 import { Sidebar } from "@/components/Sidebar";
 import {
@@ -15,9 +15,10 @@ import { useGoogleDrive } from "@/hooks/useGoogleDrive";
 const CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 
 function MainLayout() {
-  const { synced: indexedDbSynced, doc } = useNotes();
+  const { doc } = useNotes();
   const { activeFileId } = useFileSystem();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
 
   const {
@@ -134,63 +135,40 @@ function MainLayout() {
 
   return (
     <div className="flex h-screen bg-slate-50 text-slate-900 font-sans overflow-hidden">
-      {/* Sidebar: File Explorer */}
-      <div className="w-64 bg-slate-50 border-r border-slate-200 flex flex-col hidden md:flex shrink-0">
-        <div className="p-4 border-b border-slate-200 bg-white/50">
-          <h1 className="text-sm font-bold text-slate-700 flex items-center gap-2">
-            <div className="w-6 h-6 bg-sky-500 rounded flex items-center justify-center text-white text-xs">
-              D
-            </div>
-            Diegesis
-          </h1>
+      {/* Mobile Drawer */}
+      <div
+        className={`fixed inset-0 z-50 md:hidden transition-opacity duration-300 ${
+          isMobileMenuOpen ? "opacity-100" : "opacity-0 pointer-events-none"
+        }`}
+      >
+        <div
+          className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+          onClick={() => setIsMobileMenuOpen(false)}
+        />
+        <div
+          className={`relative w-72 h-full bg-white shadow-xl transform transition-transform duration-300 ${
+            isMobileMenuOpen ? "translate-x-0" : "-translate-x-full"
+          }`}
+        >
+          <AppSidebar
+            isSignedIn={isSignedIn}
+            user={user}
+            onSignIn={handleAuthClick}
+            onSignOut={handleSignOutClick}
+            onClose={() => setIsMobileMenuOpen(false)}
+          />
         </div>
-        <div className="flex-1 overflow-y-auto">
-          <FileTree />
-        </div>
-        {/* User Profile / Info at bottom of sidebar */}
-        <div className="p-4 border-t border-slate-200 bg-white/50">
-          <div className="flex items-center gap-2 mb-3">
-            <span
-              className={`w-2 h-2 rounded-full ${
-                indexedDbSynced ? "bg-emerald-500" : "bg-amber-500"
-              }`}
-            ></span>
-            <span className="text-xs text-slate-500 font-medium">
-              {indexedDbSynced ? "Ready" : "Offline"}
-            </span>
-          </div>
-          {isSignedIn ? (
-            <div>
-              <div className="flex items-center gap-2 mb-2">
-                {user?.imageUrl ? (
-                  <img
-                    src={user.imageUrl}
-                    alt={user?.name}
-                    className="w-6 h-6 rounded-full"
-                  />
-                ) : (
-                  <div className="w-6 h-6 rounded-full bg-sky-100 text-sky-600 text-xs flex items-center justify-center font-bold">
-                    {user?.name?.[0]}
-                  </div>
-                )}
-                <span className="text-xs font-bold truncate">{user?.name}</span>
-              </div>
-              <button
-                onClick={handleSignOutClick}
-                className="text-xs text-rose-500 hover:text-rose-600 font-bold block"
-              >
-                Sign Out
-              </button>
-            </div>
-          ) : (
-            <button
-              onClick={handleAuthClick}
-              className="w-full bg-sky-500 text-white text-xs font-bold py-1.5 rounded hover:bg-sky-600 transition-colors"
-            >
-              Sign In
-            </button>
-          )}
-        </div>
+      </div>
+
+      {/* Desktop Sidebar: File Explorer */}
+      <div className="hidden md:flex w-64 h-full shrink-0">
+        <AppSidebar
+          className="w-full"
+          isSignedIn={isSignedIn}
+          user={user}
+          onSignIn={handleAuthClick}
+          onSignOut={handleSignOutClick}
+        />
       </div>
 
       {/* Main Area */}
@@ -199,8 +177,10 @@ function MainLayout() {
         <header className="h-12 border-b border-slate-200 bg-white flex items-center justify-between px-4 shrink-0">
           <div className="flex items-center gap-3">
             <div className="md:hidden">
-              {/* Mobile Menu Toggle (TODO) */}
-              <button className="p-1 text-slate-500">
+              <button
+                className="p-1 text-slate-500 hover:bg-slate-100 rounded"
+                onClick={() => setIsMobileMenuOpen(true)}
+              >
                 <svg
                   className="w-5 h-5"
                   fill="none"
