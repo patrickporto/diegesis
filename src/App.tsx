@@ -9,13 +9,16 @@ import {
   FileSystemProvider,
   useFileSystem,
 } from "@/contexts/FileSystemContext";
-import { NotesProvider, useNotes } from "@/contexts/NotesContext";
-import { useGoogleDrive } from "@/hooks/useGoogleDrive";
+import { NotesProvider } from "@/contexts/NotesContext";
+import {
+  GoogleSyncProvider,
+  OfflineSyncProvider,
+  useSync,
+} from "@/contexts/SyncContext";
 
 const CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 
 function MainLayout() {
-  const { doc } = useNotes();
   const { activeFileId } = useFileSystem();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -28,7 +31,7 @@ function MainLayout() {
     syncWithDrive,
     user,
     syncStatus,
-  } = useGoogleDrive(doc);
+  } = useSync();
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -296,7 +299,9 @@ function App() {
     return (
       <NotesProvider>
         <FileSystemProvider>
-          <MainLayout />
+          <OfflineSyncProvider>
+            <MainLayout />
+          </OfflineSyncProvider>
         </FileSystemProvider>
       </NotesProvider>
     );
@@ -306,7 +311,9 @@ function App() {
     <GoogleOAuthProvider clientId={CLIENT_ID}>
       <NotesProvider>
         <FileSystemProvider>
-          <MainLayout />
+          <GoogleSyncProvider>
+            <MainLayout />
+          </GoogleSyncProvider>
         </FileSystemProvider>
       </NotesProvider>
     </GoogleOAuthProvider>

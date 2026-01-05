@@ -4,8 +4,7 @@ import { uuidv7 } from "uuidv7";
 
 import { executeOpenRouterTool, OPENROUTER_TOOLS } from "@/agent/tools";
 import { useFileSystem } from "@/contexts/FileSystemContext";
-
-const STORAGE_KEY = "openrouter_api_key";
+import { useNotes } from "@/contexts/NotesContext";
 
 export interface Message {
   id: string;
@@ -47,9 +46,9 @@ export function useOpenRouter(editor?: BlockNoteEditor | null) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [apiKey, setApiKeyState] = useState<string>(() => {
-    return localStorage.getItem(STORAGE_KEY) || "";
-  });
+
+  const { doc } = useNotes();
+  const [apiKey, setApiKeyState] = useState<string>("");
 
   const fileSystem = useFileSystem();
   const editorRef = useRef<BlockNoteEditor | null>(editor || null);
@@ -59,14 +58,44 @@ export function useOpenRouter(editor?: BlockNoteEditor | null) {
     editorRef.current = editor || null;
   }, [editor]);
 
-  const setApiKey = useCallback((key: string) => {
-    setApiKeyState(key);
-    if (key) {
-      localStorage.setItem(STORAGE_KEY, key);
-    } else {
-      localStorage.removeItem(STORAGE_KEY);
-    }
-  }, []);
+  // Sync API Key with Y.js doc
+  useEffect(() => {
+    if (!doc) return;
+
+    const settings = doc.getMap<string>("settings");
+
+    // Initial load
+    setApiKeyState(settings.get("openrouter_api_key") || "");
+
+    // Observe changes
+    const displayApiKey = () => {
+      setApiKeyState(settings.get("openrouter_api_key") || "");
+    };
+
+    settings.observe(displayApiKey);
+
+    return () => {
+      settings.unobserve(displayApiKey);
+    };
+  }, [doc]);
+
+  const setApiKey = useCallback(
+    (key: string) => {
+      if (!doc) return;
+      const settings = doc.getMap<string>("settings");
+
+      // We update local state immediately for responsiveness,
+      // though the observer would also catch it.
+      setApiKeyState(key);
+
+      if (key) {
+        settings.set("openrouter_api_key", key);
+      } else {
+        settings.delete("openrouter_api_key");
+      }
+    },
+    [doc]
+  );
 
   const sendMessage = useCallback(
     async (text: string) => {

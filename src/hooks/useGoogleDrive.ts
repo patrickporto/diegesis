@@ -99,7 +99,45 @@ export const useGoogleDrive = (doc?: Y.Doc) => {
       console.error("Non-OAuth error:", error);
     },
     scope: "openid profile email https://www.googleapis.com/auth/drive.file",
+    ux_mode: "redirect",
   });
+
+  // Handle redirect callback
+  useEffect(() => {
+    const hash = window.location.hash;
+    if (hash && hash.includes("access_token")) {
+      const params = new URLSearchParams(hash.substring(1)); // remove #
+      const token = params.get("access_token");
+      if (token) {
+        setAccessToken(token);
+        localStorage.setItem("google_access_token", token);
+        setIsSignedIn(true);
+        // Clear hash to clean up URL
+        window.history.replaceState(
+          null,
+          "",
+          window.location.pathname + window.location.search
+        );
+
+        // Fetch user info immediately
+        fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+          .then((res) => res.json())
+          .then((userInfo) => {
+            setUser({
+              name: userInfo.name,
+              email: userInfo.email,
+              imageUrl: userInfo.picture,
+            });
+            console.log("User info fetched from redirect:", userInfo);
+          })
+          .catch((err) =>
+            console.error("Failed to fetch user info after redirect:", err)
+          );
+      }
+    }
+  }, []);
 
   const handleAuthClick = () => {
     login();
