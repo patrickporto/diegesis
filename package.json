@@ -44,6 +44,7 @@
     "@tiptap/starter-kit": "^3.14.0",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
+    "react-hotkeys-hook": "^5.2.1",
     "react-markdown": "^10.1.0",
     "uuidv7": "^1.1.0",
     "y-indexeddb": "^9.0.12",

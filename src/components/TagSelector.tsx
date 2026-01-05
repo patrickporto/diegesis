@@ -4,13 +4,13 @@ import { createPortal } from "react-dom";
 import { useFileSystem } from "@/contexts/FileSystemContext";
 
 export function TagSelector({ fileId }: { fileId: string }) {
-  const { fileMap, setFileTags, tagDefs, updateTagName } = useFileSystem();
+  const { fileTree, setFileTags, tagDefs, updateTagName } = useFileSystem();
   const [isOpen, setIsOpen] = useState(false);
   const [isManageMode, setIsManageMode] = useState(false);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const [coords, setCoords] = useState({ top: 0, left: 0 });
 
-  const node = fileMap.get(fileId);
+  const node = fileTree.find((n) => n.id === fileId);
   if (!node) return null;
 
   const currentTags = node.tags || [];

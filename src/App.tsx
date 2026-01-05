@@ -1,5 +1,6 @@
 import { GoogleOAuthProvider } from "@react-oauth/google";
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { useHotkeys } from "react-hotkeys-hook";
 
 import { AppSidebar } from "@/components/AppSidebar";
 import { Editor } from "@/components/Editor";
@@ -33,16 +34,15 @@ function MainLayout() {
     syncStatus,
   } = useSync();
 
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
-        e.preventDefault();
-        setIsSearchOpen(true);
-      }
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, []);
+  // Global hotkey for search (Ctrl+K / Cmd+K)
+  useHotkeys(
+    "mod+f",
+    (e) => {
+      e.preventDefault();
+      setIsSearchOpen(true);
+    },
+    { enableOnFormTags: true }
+  );
 
   const getSyncIcon = () => {
     switch (syncStatus) {

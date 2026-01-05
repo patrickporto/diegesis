@@ -1,7 +1,9 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useHotkeys } from "react-hotkeys-hook";
 
 import { useFileSystem } from "@/contexts/FileSystemContext";
 import { useNotes } from "@/contexts/NotesContext";
+import { BM25SearchEngine, SearchDocument, SearchResult } from "@/lib/bm25";
 
 export function OmniSearch({
   isOpen,
@@ -13,86 +15,93 @@ export function OmniSearch({
   const { fileTree, setActiveFileId } = useFileSystem();
   const { doc } = useNotes();
   const [query, setQuery] = useState("");
-  const [results, setResults] = useState<
-    {
-      id: string;
-      name: string;
-      type: "folder" | "text" | string;
-      matchType: "name" | "content";
-      snippet?: string;
-    }[]
-  >([]);
+  const [results, setResults] = useState<SearchResult[]>([]);
+  const [selectedIndex, setSelectedIndex] = useState(0);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const resultRefs = useRef<Map<number, HTMLButtonElement>>(new Map());
 
+  // Build BM25 search engine with memoized documents
+  const searchEngine = useMemo(() => {
+    const engine = new BM25SearchEngine();
+    const documents: SearchDocument[] = fileTree
+      .filter((node) => node.type === "text")
+      .map((node) => {
+        const fragment = doc.getXmlFragment(`content-${node.id}`);
+        const content = fragment.toString();
+        return {
+          id: node.id,
+          name: node.name,
+          content,
+        };
+      });
+    engine.buildIndex(documents);
+    return engine;
+  }, [fileTree, doc]);
+
+  // Reset state when modal closes
   useEffect(() => {
     if (!isOpen) {
       setQuery("");
       setResults([]);
+      setSelectedIndex(0);
       return;
     }
+    // Focus input when opened
+    setTimeout(() => inputRef.current?.focus(), 0);
   }, [isOpen]);
 
+  // Perform BM25+ search when query changes
   useEffect(() => {
     if (!query) {
       setResults([]);
+      setSelectedIndex(0);
       return;
     }
-
-    const lowerQuery = query.toLowerCase();
-    const searchResults: typeof results = [];
-
-    // 1. Search Metadata (Names)
-    fileTree.forEach((node) => {
-      if (node.name.toLowerCase().includes(lowerQuery)) {
-        searchResults.push({
-          id: node.id,
-          name: node.name,
-          type: node.type,
-          matchType: "name",
-        });
-      }
-    });
-
-    // 2. Search Content (Basic Text Scan of Yjs Fragments)
-    // Note: This is computationally expensive if done naively on the main thread for large docs.
-    // For now, we iterate all files and get their fragment text.
-    // Ideally we index this or do it async.
-    fileTree.forEach((node) => {
-      if (node.type === "text") {
-        const fragment = doc.getXmlFragment(`content-${node.id}`);
-        const textContent = fragment.toString(); // Gets basic text content
-        if (textContent.toLowerCase().includes(lowerQuery)) {
-          // Check if already added by name match
-          if (!searchResults.find((r) => r.id === node.id)) {
-            const index = textContent.toLowerCase().indexOf(lowerQuery);
-            const start = Math.max(0, index - 10);
-            const end = Math.min(textContent.length, index + query.length + 20);
-            const snippet = "..." + textContent.slice(start, end) + "...";
-
-            searchResults.push({
-              id: node.id,
-              name: node.name,
-              type: node.type,
-              matchType: "content",
-              snippet,
-            });
-          }
-        }
-      }
-    });
-
+    const searchResults = searchEngine.search(query);
     setResults(searchResults);
-  }, [query, fileTree, doc, isOpen]);
+    setSelectedIndex(0);
+  }, [query, searchEngine]);
 
-  const handleSelect = (id: string, type: "folder" | "text" | string) => {
-    if (type !== "folder") {
+  // Scroll selected item into view
+  useEffect(() => {
+    const selectedElement = resultRefs.current.get(selectedIndex);
+    selectedElement?.scrollIntoView({ block: "nearest" });
+  }, [selectedIndex]);
+
+  const handleSelect = useCallback(
+    (id: string) => {
       setActiveFileId(id);
       onClose();
-    } else {
-      // Folder selection logic (maybe expand in tree?)
-      // For now just close
-      onClose();
-    }
-  };
+    },
+    [setActiveFileId, onClose]
+  );
+
+  // Keyboard navigation handlers
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setSelectedIndex((prev) => Math.min(prev + 1, results.length - 1));
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setSelectedIndex((prev) => Math.max(prev - 1, 0));
+      } else if (e.key === "Enter" && results.length > 0) {
+        e.preventDefault();
+        handleSelect(results[selectedIndex].id);
+      }
+    },
+    [results, selectedIndex, handleSelect]
+  );
+
+  // Global hotkey for Escape
+  useHotkeys(
+    "escape",
+    () => {
+      if (isOpen) onClose();
+    },
+    { enabled: isOpen, enableOnFormTags: true },
+    [isOpen, onClose]
+  );
 
   if (!isOpen) return null;
 
@@ -104,6 +113,7 @@ export function OmniSearch({
       <div
         className="bg-white w-full max-w-xl rounded-xl shadow-2xl overflow-hidden border border-slate-200"
         onClick={(e) => e.stopPropagation()}
+        onKeyDown={handleKeyDown}
       >
         <div className="p-4 border-b border-slate-100 flex items-center gap-3">
           <svg
@@ -120,6 +130,7 @@ export function OmniSearch({
             />
           </svg>
           <input
+            ref={inputRef}
             autoFocus
             placeholder="Search files and content..."
             className="flex-1 text-lg outline-none text-slate-700 placeholder-slate-400"
@@ -142,42 +153,34 @@ export function OmniSearch({
             </div>
           ) : (
             <div className="py-2">
-              {results.map((result) => (
+              {results.map((result, index) => (
                 <button
                   key={result.id}
-                  className="w-full text-left px-4 py-3 hover:bg-slate-50 border-l-4 border-transparent hover:border-sky-500 flex flex-col gap-1 transition-colors"
-                  onClick={() => handleSelect(result.id, result.type)}
+                  ref={(el) => {
+                    if (el) resultRefs.current.set(index, el);
+                  }}
+                  className={`w-full text-left px-4 py-3 border-l-4 flex flex-col gap-1 transition-colors ${
+                    index === selectedIndex
+                      ? "bg-sky-50 border-sky-500"
+                      : "border-transparent hover:bg-slate-50 hover:border-sky-500"
+                  }`}
+                  onClick={() => handleSelect(result.id)}
+                  onMouseEnter={() => setSelectedIndex(index)}
                 >
                   <div className="flex items-center gap-2">
-                    {result.type === "folder" ? (
-                      <svg
-                        className="w-4 h-4 text-slate-400"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"
-                        />
-                      </svg>
-                    ) : (
-                      <svg
-                        className="w-4 h-4 text-slate-400"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 2H7a2 2 0 00-2 2v14a2 2 0 002 2z"
-                        />
-                      </svg>
-                    )}
+                    <svg
+                      className="w-4 h-4 text-slate-400"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 2H7a2 2 0 00-2 2v14a2 2 0 002 2z"
+                      />
+                    </svg>
                     <span className="font-medium text-slate-700">
                       {result.name}
                     </span>
@@ -186,9 +189,12 @@ export function OmniSearch({
                         Content
                       </span>
                     )}
+                    <span className="ml-auto text-xs text-slate-400">
+                      {result.score.toFixed(1)}
+                    </span>
                   </div>
                   {result.snippet && (
-                    <p className="text-xs text-slate-500 pl-6 font-mono">
+                    <p className="text-xs text-slate-500 pl-6 font-mono truncate">
                       {result.snippet}
                     </p>
                   )}
@@ -200,6 +206,13 @@ export function OmniSearch({
 
         <div className="bg-slate-50 px-4 py-2 border-t border-slate-100 text-xs text-slate-400 flex justify-between">
           <span>{results.length} results</span>
+          <span className="flex gap-2">
+            <kbd className="bg-slate-200 px-1.5 rounded">↑</kbd>
+            <kbd className="bg-slate-200 px-1.5 rounded">↓</kbd>
+            <span>to navigate</span>
+            <kbd className="bg-slate-200 px-1.5 rounded">↵</kbd>
+            <span>to select</span>
+          </span>
         </div>
       </div>
     </div>
