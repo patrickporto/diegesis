@@ -73,6 +73,7 @@ export function BattlemapEditor({ fileId, doc }: BattlemapEditorProps) {
   const [drawings, setDrawings] = useState<DrawingPath[]>([]);
   const [texts, setTexts] = useState<TextAnnotation[]>([]);
   const [activeTool, setActiveTool] = useState<ToolType>("select");
+  const activeToolRef = useRef<ToolType>("select");
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isDrawing, setIsDrawing] = useState(false);
   const [isReady, setIsReady] = useState(false);
@@ -105,6 +106,11 @@ export function BattlemapEditor({ fileId, doc }: BattlemapEditorProps) {
     },
     [doc, settingsMap]
   );
+
+  // Sync activeToolRef
+  useEffect(() => {
+    activeToolRef.current = activeTool;
+  }, [activeTool]);
 
   // Load settings from Yjs
   useEffect(() => {
@@ -459,16 +465,11 @@ export function BattlemapEditor({ fileId, doc }: BattlemapEditorProps) {
   }, [settings.layers, isReady]);
 
   // Render grid
-  useEffect(() => {
+  const renderGrid = useCallback(() => {
     const gridContainer = layerContainersRef.current.get("grid") as Graphics;
     if (!gridContainer || !viewportRef.current) return;
 
-    // Use world values or just a large area?
     const { worldWidth, worldHeight } = viewportRef.current;
-    // We should probably draw grid over the whole "background" area.
-    // If background is infinite, grid is tricky.
-    // For now, let's assume world size = screen size if no background, or background size.
-    // We'll update world size when background loads.
 
     GridRenderer.render(
       gridContainer,
@@ -482,7 +483,12 @@ export function BattlemapEditor({ fileId, doc }: BattlemapEditorProps) {
         alpha: settings.gridOpacity,
       }
     );
-  }, [settings, isReady]);
+  }, [settings]);
+
+  // Render grid
+  useEffect(() => {
+    renderGrid();
+  }, [renderGrid]);
 
   const { uploadFile, getFileBlob, isSignedIn } = useSync();
 
@@ -559,7 +565,7 @@ export function BattlemapEditor({ fileId, doc }: BattlemapEditorProps) {
         const viewport = viewportRef.current;
         if (viewport) {
           viewport.resize(undefined, undefined, sprite.width, sprite.height);
-          // Center? viewport.moveCenter(sprite.width/2, sprite.height/2);
+          renderGrid();
         }
       } catch (error) {
         console.error("Failed to load background image:", error);
@@ -569,7 +575,7 @@ export function BattlemapEditor({ fileId, doc }: BattlemapEditorProps) {
     };
 
     loadBackground();
-  }, [settings.backgroundImage, isReady, isSignedIn, getFileBlob]);
+  }, [settings.backgroundImage, isReady, isSignedIn, getFileBlob, renderGrid]);
 
   // Render tokens optimized
   useEffect(() => {
@@ -673,13 +679,13 @@ export function BattlemapEditor({ fileId, doc }: BattlemapEditorProps) {
         let dragOffset = { x: 0, y: 0 };
 
         container.on("pointerdown", (e) => {
-          if (activeTool === "eraser") {
+          if (activeToolRef.current === "eraser") {
             e.stopPropagation();
             handleTokenAction(token.id, "delete");
             return;
           }
 
-          if (activeTool !== "select") return;
+          if (activeToolRef.current !== "select") return;
 
           if (e.button === 2 || e.nativeEvent.button === 2) {
             e.stopPropagation();
@@ -708,10 +714,14 @@ export function BattlemapEditor({ fileId, doc }: BattlemapEditorProps) {
 
           // Stop propagation for select tool so we don't pan when dragging token
           e.stopPropagation();
+
+          const viewport = viewportRef.current;
+          if (!viewport) return;
+
           isDragging = true;
           (container as Container & { isDragging: boolean }).isDragging = true;
           container.cursor = "grabbing";
-          const worldPos = viewport.toWorld(e.global.x, e.global.y);
+          const worldPos = viewport.toLocal(e.global);
           dragOffset = {
             x: worldPos.x - container.x,
             y: worldPos.y - container.y,
@@ -723,7 +733,7 @@ export function BattlemapEditor({ fileId, doc }: BattlemapEditorProps) {
           const viewport = viewportRef.current;
           if (!viewport) return;
 
-          const worldPos = viewport.toWorld(e.global.x, e.global.y);
+          const worldPos = viewport.toLocal(e.global);
           let newX = worldPos.x - dragOffset.x;
           let newY = worldPos.y - dragOffset.y;
 
@@ -744,7 +754,7 @@ export function BattlemapEditor({ fileId, doc }: BattlemapEditorProps) {
           container.y = newY;
         });
 
-        container.on("pointerup", () => {
+        const onDragEnd = () => {
           if (!isDragging) return;
           isDragging = false;
           (container as Container & { isDragging: boolean }).isDragging = false;
@@ -765,7 +775,10 @@ export function BattlemapEditor({ fileId, doc }: BattlemapEditorProps) {
               tokensArray.insert(idx, [updatedToken]);
             });
           }
-        });
+        };
+
+        container.on("pointerup", onDragEnd);
+        container.on("pointerupoutside", onDragEnd);
 
         // Add to layer
         // Find layer by ID or default to 'tokens'
@@ -845,7 +858,10 @@ export function BattlemapEditor({ fileId, doc }: BattlemapEditorProps) {
       // Or just trust Pixi's `containsPoint` on stroke.
 
       graphics.on("pointerover", () => {
-        if (activeTool === "select" || activeTool === "eraser") {
+        if (
+          activeToolRef.current === "select" ||
+          activeToolRef.current === "eraser"
+        ) {
           graphics.alpha = 0.6;
         }
       });
@@ -855,7 +871,7 @@ export function BattlemapEditor({ fileId, doc }: BattlemapEditorProps) {
 
       // Context Menu for Drawing
       graphics.on("pointerdown", (e) => {
-        if (activeTool === "eraser") {
+        if (activeToolRef.current === "eraser") {
           e.stopPropagation();
           handleDrawingAction(path.id, "delete");
           return;
@@ -949,7 +965,7 @@ export function BattlemapEditor({ fileId, doc }: BattlemapEditorProps) {
       const viewport = viewportRef.current;
       if (!viewport) return;
 
-      const point = viewport.toWorld(e.offsetX, e.offsetY);
+      const point = viewport.toLocal({ x: e.offsetX, y: e.offsetY });
       const x = point.x;
       const y = point.y;
 
@@ -965,15 +981,15 @@ export function BattlemapEditor({ fileId, doc }: BattlemapEditorProps) {
       // Validate if active layer supports the tool?
       // For MVP, just dump into active layer.
 
-      if (activeTool === "draw") {
+      if (activeToolRef.current === "draw") {
         setIsDrawing(true);
         currentPathRef.current = [x, y];
-      } else if (activeTool === "token") {
+      } else if (activeToolRef.current === "token") {
         // Disabled per user request: "Remove click-to-create token"
         // But drag-drop logic below handles it.
         // If user wants to click to place FROM library selection (if we had one selected), that's different.
         // For now, removing click-to-create generic token.
-      } else if (activeTool === "text") {
+      } else if (activeToolRef.current === "text") {
         const text = prompt("Digite o texto:");
         if (text) {
           doc.transact(() => {
@@ -994,9 +1010,14 @@ export function BattlemapEditor({ fileId, doc }: BattlemapEditorProps) {
     };
 
     const onPointerMove = (e: PointerEvent) => {
-      if (!isDrawing || activeTool !== "draw" || !viewportRef.current) return;
+      if (
+        !isDrawing ||
+        activeToolRef.current !== "draw" ||
+        !viewportRef.current
+      )
+        return;
 
-      const point = viewportRef.current.toWorld(e.offsetX, e.offsetY);
+      const point = viewportRef.current.toLocal({ x: e.offsetX, y: e.offsetY });
       const x = point.x;
       const y = point.y;
 
@@ -1047,13 +1068,17 @@ export function BattlemapEditor({ fileId, doc }: BattlemapEditorProps) {
 
     return () => {
       if (app && app.canvas) {
-        app.canvas.removeEventListener("pointerdown", onPointerDown);
-        app.canvas.removeEventListener("pointermove", onPointerMove);
-        app.canvas.removeEventListener("pointerup", onPointerUp);
+        try {
+          app.canvas.removeEventListener("pointerdown", onPointerDown);
+          app.canvas.removeEventListener("pointermove", onPointerMove);
+          app.canvas.removeEventListener("pointerup", onPointerUp);
+        } catch (e) {
+          // Ignore
+        }
       }
     };
   }, [
-    activeTool,
+    // activeTool, // Removed to prevent re-binding
     isDrawing,
     settings,
     doc,
@@ -1122,7 +1147,7 @@ export function BattlemapEditor({ fileId, doc }: BattlemapEditorProps) {
         // Pixi interaction usually normalizes this.
 
         const viewport = viewportRef.current;
-        const point = viewport.toWorld(globalX, globalY);
+        const point = viewport.toLocal({ x: globalX, y: globalY });
 
         let posX = point.x;
         let posY = point.y;
