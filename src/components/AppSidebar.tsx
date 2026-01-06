@@ -1,4 +1,5 @@
 import { FileTree } from "@/components/FileTree";
+import { RealmSwitcher } from "@/components/RealmSwitcher";
 import { useNotes } from "@/contexts/NotesContext";
 
 interface GoogleUser {
@@ -59,6 +60,7 @@ export function AppSidebar({
         )}
       </div>
       <div className="flex-1 overflow-y-auto">
+        <RealmSwitcher />
         <FileTree />
       </div>
       {/* User Profile / Info at bottom of sidebar */}

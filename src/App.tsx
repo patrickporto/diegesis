@@ -7,11 +7,13 @@ import { Editor } from "@/components/Editor";
 import { OfflineBanner } from "@/components/OfflineBanner";
 import { OmniSearch } from "@/components/OmniSearch";
 import { Sidebar } from "@/components/Sidebar";
+import { WelcomeModal } from "@/components/WelcomeModal";
 import {
   FileSystemProvider,
   useFileSystem,
 } from "@/contexts/FileSystemContext";
 import { NotesProvider } from "@/contexts/NotesContext";
+import { RealmProvider } from "@/contexts/RealmContext";
 import {
   GoogleSyncProvider,
   OfflineSyncProvider,
@@ -155,6 +157,7 @@ function MainLayout() {
 
   return (
     <div className="flex h-screen bg-slate-50 text-slate-900 font-sans overflow-hidden">
+      <WelcomeModal />
       {/* Mobile Drawer */}
       <div
         className={`fixed inset-0 z-50 md:hidden transition-opacity duration-300 ${
@@ -295,6 +298,10 @@ function MainLayout() {
   );
 }
 
+import { Route, Routes } from "react-router-dom";
+
+import { URLSync } from "@/components/URLSync";
+
 function App() {
   // If no CLIENT_ID, run in offline-only mode (no Google Drive sync)
   if (!CLIENT_ID) {
@@ -302,7 +309,26 @@ function App() {
       <NotesProvider>
         <FileSystemProvider>
           <OfflineSyncProvider>
-            <MainLayout />
+            <Routes>
+              <Route
+                path="/"
+                element={
+                  <>
+                    <URLSync />
+                    <MainLayout />
+                  </>
+                }
+              />
+              <Route
+                path="/doc/:id"
+                element={
+                  <>
+                    <URLSync />
+                    <MainLayout />
+                  </>
+                }
+              />
+            </Routes>
           </OfflineSyncProvider>
         </FileSystemProvider>
       </NotesProvider>
@@ -311,13 +337,34 @@ function App() {
 
   return (
     <GoogleOAuthProvider clientId={CLIENT_ID}>
-      <NotesProvider>
-        <FileSystemProvider>
-          <GoogleSyncProvider>
-            <MainLayout />
-          </GoogleSyncProvider>
-        </FileSystemProvider>
-      </NotesProvider>
+      <RealmProvider>
+        <NotesProvider>
+          <FileSystemProvider>
+            <GoogleSyncProvider>
+              <Routes>
+                <Route
+                  path="/"
+                  element={
+                    <>
+                      <URLSync />
+                      <MainLayout />
+                    </>
+                  }
+                />
+                <Route
+                  path="/doc/:id"
+                  element={
+                    <>
+                      <URLSync />
+                      <MainLayout />
+                    </>
+                  }
+                />
+              </Routes>
+            </GoogleSyncProvider>
+          </FileSystemProvider>
+        </NotesProvider>
+      </RealmProvider>
     </GoogleOAuthProvider>
   );
 }

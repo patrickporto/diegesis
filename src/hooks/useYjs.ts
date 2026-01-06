@@ -2,24 +2,33 @@ import { useEffect, useState } from "react";
 import { IndexeddbPersistence } from "y-indexeddb";
 import * as Y from "yjs";
 
-export const useYjs = () => {
-  const [doc] = useState(() => new Y.Doc());
+export const useYjs = (roomName: string) => {
+  const [doc, setDoc] = useState<Y.Doc>(() => new Y.Doc());
   const [provider, setProvider] = useState<IndexeddbPersistence | null>(null);
   const [synced, setSynced] = useState(false);
 
   useEffect(() => {
-    const indexeddbProvider = new IndexeddbPersistence("diegesis-notes", doc);
+    // Clean up old doc/provider if they exist
+    // Actually, we're creating a new one on every roomName change,
+    // so we need to dispose the previous one.
+    // NOTE: React strict mode might cause double init, so we need careful cleanup.
 
-    indexeddbProvider.on("synced", () => {
+    const newDoc = new Y.Doc();
+    const newProvider = new IndexeddbPersistence(roomName, newDoc);
+
+    setSynced(false);
+    newProvider.on("synced", () => {
       setSynced(true);
     });
 
-    setProvider(indexeddbProvider);
+    setDoc(newDoc);
+    setProvider(newProvider);
 
     return () => {
-      indexeddbProvider.destroy();
+      newProvider.destroy();
+      newDoc.destroy();
     };
-  }, [doc]);
+  }, [roomName]);
 
   return { doc, provider, synced };
 };

@@ -15,8 +15,16 @@ interface NotesContextType {
 
 const NotesContext = createContext<NotesContextType | null>(null);
 
+import { useRealm } from "@/contexts/RealmContext";
+
 export function NotesProvider({ children }: { children: ReactNode }) {
-  const { doc, provider, synced } = useYjs();
+  const { activeRealmId } = useRealm();
+  const roomName =
+    activeRealmId === "default"
+      ? "diegesis-notes"
+      : `diegesis-realm-${activeRealmId}`;
+
+  const { doc, provider, synced } = useYjs(roomName);
   const [editor, setEditor] = useState<BlockNoteEditor | null>(null);
 
   return (

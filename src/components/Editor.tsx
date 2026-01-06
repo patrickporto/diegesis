@@ -11,6 +11,7 @@ import * as Y from "yjs";
 import { useFileSystem } from "@/contexts/FileSystemContext";
 import { useNotes } from "@/contexts/NotesContext";
 
+import { BattlemapEditor } from "./BattlemapEditor";
 import { TableEditor } from "./TableEditor/TableEditor";
 
 export const Editor = () => {
@@ -38,6 +39,12 @@ export const Editor = () => {
 
   if (activeFileNode.type === "table") {
     return <TableEditor key={activeFileId} fileId={activeFileId} doc={doc} />;
+  }
+
+  if (activeFileNode.type === "battlemap") {
+    return (
+      <BattlemapEditor key={activeFileId} fileId={activeFileId} doc={doc} />
+    );
   }
 
   return (

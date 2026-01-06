@@ -1,5 +1,8 @@
 import { BlockNoteEditor } from "@blocknote/core";
+import { uuidv7 } from "uuidv7";
+import * as Y from "yjs";
 
+import { ColumnType } from "@/components/TableEditor/types";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { FileSystemContextType } from "@/contexts/FileSystemContext";
 
@@ -144,7 +147,8 @@ export async function executeTool(
   functionName: string,
   args: Record<string, unknown>,
   editor: BlockNoteEditor | null | undefined, // Editor might be null if we are just doing file ops
-  fileSystem?: FileSystemContextType // We pass the file system context here
+  fileSystem?: FileSystemContextType, // We pass the file system context here
+  doc?: Y.Doc | null // Yjs doc for table manipulation
 ): Promise<string> {
   console.log(`Executing tool: ${functionName}`, args);
 
@@ -270,6 +274,123 @@ export async function executeTool(
         if (!activeFile)
           return "Error: Active document found in state but not in the file system.";
         return `Active Document: ${activeFile.name} (ID: ${activeFile.id})`;
+      }
+
+      case "open_document": {
+        if (!fileSystem)
+          return "Error: File system not available for this tool.";
+        const { id } = args as { id: string };
+        const file = fileSystem.fileMap.get(id);
+        if (!file) return `Error: Document with ID ${id} not found.`;
+        if (file.type !== "file")
+          return `Error: ID ${id} is a folder, not a document.`;
+        fileSystem.setActiveFileId(id);
+        return `Opened document: ${file.name} (ID: ${id})`;
+      }
+
+      case "add_table_row": {
+        if (!doc)
+          return "Error: No document context available for table operations.";
+        if (!fileSystem || !fileSystem.activeFileId)
+          return "Error: No active document to add row to.";
+        const fileId = fileSystem.activeFileId;
+        const rowsArray = doc.getArray<Y.Map<unknown>>(`rows-${fileId}`);
+        doc.transact(() => {
+          const newRowMap = new Y.Map();
+          newRowMap.set("id", uuidv7());
+          rowsArray.push([newRowMap]);
+        });
+        return "Row added successfully.";
+      }
+
+      case "add_table_column": {
+        if (!doc)
+          return "Error: No document context available for table operations.";
+        if (!fileSystem || !fileSystem.activeFileId)
+          return "Error: No active document to add column to.";
+        const fileId = fileSystem.activeFileId;
+        const { name, type } = args as { name: string; type: ColumnType };
+        const schemaArray = doc.getArray(`schema-${fileId}`);
+        doc.transact(() => {
+          schemaArray.push([{ id: uuidv7(), name, type }]);
+        });
+        return `Column "${name}" of type "${type}" added successfully.`;
+      }
+
+      case "delete_table_row": {
+        if (!doc)
+          return "Error: No document context available for table operations.";
+        if (!fileSystem || !fileSystem.activeFileId)
+          return "Error: No active document to delete row from.";
+        const fileId = fileSystem.activeFileId;
+        const { rowIndex } = args as { rowIndex: number };
+        const rowsArray = doc.getArray(`rows-${fileId}`);
+        if (rowIndex < 0 || rowIndex >= rowsArray.length)
+          return `Error: Row index ${rowIndex} is out of bounds.`;
+        doc.transact(() => {
+          rowsArray.delete(rowIndex, 1);
+        });
+        return `Row ${rowIndex} deleted successfully.`;
+      }
+
+      case "delete_table_column": {
+        if (!doc)
+          return "Error: No document context available for table operations.";
+        if (!fileSystem || !fileSystem.activeFileId)
+          return "Error: No active document to delete column from.";
+        const fileId = fileSystem.activeFileId;
+        const { columnId } = args as { columnId: string };
+        const schemaArray = doc.getArray(`schema-${fileId}`);
+        const schema = schemaArray.toArray() as Array<{
+          id: string;
+          name: string;
+          type: ColumnType;
+        }>;
+        const colIndex = schema.findIndex((col) => col.id === columnId);
+        if (colIndex === -1)
+          return `Error: Column with ID ${columnId} not found.`;
+        doc.transact(() => {
+          schemaArray.delete(colIndex, 1);
+        });
+        return `Column deleted successfully.`;
+      }
+
+      case "update_table_cell": {
+        if (!doc)
+          return "Error: No document context available for table operations.";
+        if (!fileSystem || !fileSystem.activeFileId)
+          return "Error: No active document to update cell in.";
+        const fileId = fileSystem.activeFileId;
+        const { rowIndex, columnId, value } = args as {
+          rowIndex: number;
+          columnId: string;
+          value: string | number | string[];
+        };
+        const rowsArray = doc.getArray<Y.Map<unknown>>(`rows-${fileId}`);
+        if (rowIndex < 0 || rowIndex >= rowsArray.length)
+          return `Error: Row index ${rowIndex} is out of bounds.`;
+        doc.transact(() => {
+          const rowMap = rowsArray.get(rowIndex);
+          rowMap.set(columnId, value);
+        });
+        return `Cell updated successfully.`;
+      }
+
+      case "read_table_structure": {
+        if (!doc)
+          return "Error: No document context available for table operations.";
+        if (!fileSystem || !fileSystem.activeFileId)
+          return "Error: No active document to read table from.";
+        const fileId = fileSystem.activeFileId;
+        const schemaArray = doc.getArray(`schema-${fileId}`);
+        const rowsArray = doc.getArray<Y.Map<unknown>>(`rows-${fileId}`);
+        const schema = schemaArray.toArray();
+        const rows = rowsArray.toArray().map((yMap) => yMap.toJSON());
+        return JSON.stringify(
+          { schema, rows, rowCount: rows.length, columnCount: schema.length },
+          null,
+          2
+        );
       }
 
       default:
@@ -449,6 +570,145 @@ export const OPENROUTER_TOOLS = [
       name: "get_active_document",
       description:
         "Returns the name and ID of the document currently open in the editor.",
+      parameters: {
+        type: "object",
+        properties: {},
+        required: [],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "open_document",
+      description:
+        "Opens a document by its ID. Use list_files to discover document IDs.",
+      parameters: {
+        type: "object",
+        properties: {
+          id: {
+            type: "string",
+            description: "The ID of the document to open.",
+          },
+        },
+        required: ["id"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "add_table_row",
+      description:
+        "Adds a new row to the table in the currently active document.",
+      parameters: {
+        type: "object",
+        properties: {},
+        required: [],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "add_table_column",
+      description:
+        "Adds a new column to the table in the currently active document.",
+      parameters: {
+        type: "object",
+        properties: {
+          name: {
+            type: "string",
+            description: "The name of the column.",
+          },
+          type: {
+            type: "string",
+            description:
+              "The type of the column. Valid types: text, number, select, multi-select, formula, date",
+            enum: [
+              "text",
+              "number",
+              "select",
+              "multi-select",
+              "formula",
+              "date",
+            ],
+          },
+        },
+        required: ["name", "type"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "delete_table_row",
+      description:
+        "Deletes a row from the table in the currently active document.",
+      parameters: {
+        type: "object",
+        properties: {
+          rowIndex: {
+            type: "number",
+            description: "The 0-based index of the row to delete.",
+          },
+        },
+        required: ["rowIndex"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "delete_table_column",
+      description:
+        "Deletes a column from the table in the currently active document.",
+      parameters: {
+        type: "object",
+        properties: {
+          columnId: {
+            type: "string",
+            description:
+              "The ID of the column to delete. Use read_table_structure to find column IDs.",
+          },
+        },
+        required: ["columnId"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "update_table_cell",
+      description:
+        "Updates a cell value in the table of the currently active document.",
+      parameters: {
+        type: "object",
+        properties: {
+          rowIndex: {
+            type: "number",
+            description: "The 0-based index of the row.",
+          },
+          columnId: {
+            type: "string",
+            description:
+              "The ID of the column. Use read_table_structure to find column IDs.",
+          },
+          value: {
+            description:
+              "The value to set. Can be string, number, or array of strings (for multi-select).",
+          },
+        },
+        required: ["rowIndex", "columnId", "value"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "read_table_structure",
+      description:
+        "Reads the structure and data of the table in the currently active document. Returns column schema and all rows.",
       parameters: {
         type: "object",
         properties: {},

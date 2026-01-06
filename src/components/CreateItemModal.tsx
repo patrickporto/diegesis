@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 
+type ItemType = "text" | "table" | "folder" | "battlemap";
+
 interface CreateItemModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onCreate: (name: string, type: "text" | "table" | "folder") => void;
-  initialType?: "text" | "table" | "folder";
+  onCreate: (name: string, type: ItemType) => void;
+  initialType?: ItemType;
 }
 
 export function CreateItemModal({
@@ -15,7 +17,7 @@ export function CreateItemModal({
 }: CreateItemModalProps) {
   const [isVisible, setIsVisible] = useState(false);
   const [name, setName] = useState("");
-  const [type, setType] = useState<"text" | "table" | "folder">(initialType);
+  const [type, setType] = useState<ItemType>(initialType);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -54,7 +56,7 @@ export function CreateItemModal({
 
       {/* Modal */}
       <div
-        className={`bg-white rounded-xl shadow-2xl w-full max-w-sm overflow-hidden transform transition-all duration-200 relative z-10 ${
+        className={`bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden transform transition-all duration-200 relative z-10 ${
           isOpen ? "scale-100 translate-y-0" : "scale-95 translate-y-4"
         }`}
         onClick={(e) => e.stopPropagation()}
@@ -97,7 +99,7 @@ export function CreateItemModal({
                 <label className="block text-sm font-medium text-slate-700">
                   Type
                 </label>
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-4 gap-2">
                   <TypeOption
                     label="Note"
                     selected={type === "text"}
@@ -134,6 +136,26 @@ export function CreateItemModal({
                           strokeLinejoin="round"
                           strokeWidth={2}
                           d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"
+                        />
+                      </svg>
+                    }
+                  />
+                  <TypeOption
+                    label="Battlemap"
+                    selected={type === "battlemap"}
+                    onClick={() => setType("battlemap")}
+                    icon={
+                      <svg
+                        className="w-5 h-5"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"
                         />
                       </svg>
                     }

@@ -1,6 +1,7 @@
 import MiniSearch from "minisearch";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
+import { useNavigate } from "react-router-dom";
 import * as Y from "yjs";
 
 import { useFileSystem } from "@/contexts/FileSystemContext";
@@ -24,7 +25,8 @@ export function OmniSearch({
   isOpen: boolean;
   onClose: () => void;
 }) {
-  const { fileTree, setActiveFileId } = useFileSystem();
+  const { fileTree } = useFileSystem();
+  const navigate = useNavigate();
   const { doc } = useNotes();
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
@@ -158,10 +160,10 @@ export function OmniSearch({
 
   const handleSelect = useCallback(
     (id: string) => {
-      setActiveFileId(id);
+      navigate(`/doc/${id}`);
       onClose();
     },
-    [setActiveFileId, onClose]
+    [navigate, onClose]
   );
 
   // Keyboard navigation handlers
@@ -269,6 +271,8 @@ export function OmniSearch({
                         d={
                           result.type === "table"
                             ? "M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"
+                            : result.type === "battlemap"
+                            ? "M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"
                             : "M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 2H7a2 2 0 00-2 2v14a2 2 0 002 2z"
                         }
                       />

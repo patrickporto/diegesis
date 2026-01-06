@@ -16,7 +16,7 @@ export type SyncStatus =
   | "pending"
   | "unavailable";
 
-export const useGoogleDrive = (doc?: Y.Doc) => {
+export const useGoogleDrive = (doc: Y.Doc | undefined, fileName: string) => {
   const [isSignedIn, setIsSignedIn] = useState(false);
   const [user, setUser] = useState<GoogleUser | null>(null);
   const [accessToken, setAccessToken] = useState<string | null>(null);
@@ -146,7 +146,7 @@ export const useGoogleDrive = (doc?: Y.Doc) => {
         });
 
         const metadata = {
-          name: "diegesis-notes.yjs",
+          name: fileName,
           mimeType: "application/octet-stream",
         };
 
@@ -177,7 +177,7 @@ export const useGoogleDrive = (doc?: Y.Doc) => {
         setSyncStatus("error");
       }
     },
-    []
+    [fileName]
   );
 
   // Setup auto-save listener
@@ -223,7 +223,7 @@ export const useGoogleDrive = (doc?: Y.Doc) => {
     try {
       // List files
       const listResponse = await fetch(
-        "https://www.googleapis.com/drive/v3/files?pageSize=1&fields=files(id,name)&q=name='diegesis-notes.yjs' and trashed=false",
+        `https://www.googleapis.com/drive/v3/files?pageSize=1&fields=files(id,name)&q=name='${fileName}' and trashed=false`,
         {
           headers: { Authorization: `Bearer ${accessToken}` },
         }
@@ -263,7 +263,7 @@ export const useGoogleDrive = (doc?: Y.Doc) => {
         // Create file if not exists
         console.log("Creating new file on Drive...");
         const metadata = {
-          name: "diegesis-notes.yjs",
+          name: fileName,
           mimeType: "application/octet-stream",
         };
 
@@ -316,7 +316,7 @@ export const useGoogleDrive = (doc?: Y.Doc) => {
         setSyncStatus("error");
       }
     }
-  }, [isSignedIn, accessToken, doc]);
+  }, [isSignedIn, accessToken, doc, fileName]);
 
   // Auto-sync on sign-in
   useEffect(() => {

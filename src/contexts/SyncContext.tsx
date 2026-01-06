@@ -51,11 +51,19 @@ export const OfflineSyncProvider = ({ children }: { children: ReactNode }) => {
   return <SyncContext.Provider value={value}>{children}</SyncContext.Provider>;
 };
 
+import { useRealm } from "@/contexts/RealmContext";
+
 export const GoogleSyncProvider = ({ children }: { children: ReactNode }) => {
   const { doc } = useNotes();
+  const { activeRealmId } = useRealm();
+  const fileName =
+    activeRealmId === "default"
+      ? "diegesis-notes.yjs"
+      : `diegesis-realm-${activeRealmId}.yjs`;
+
   // Safe to call useGoogleDrive here because this provider will only be rendered
   // inside GoogleOAuthProvider
-  const drive = useGoogleDrive(doc);
+  const drive = useGoogleDrive(doc, fileName);
 
   return <SyncContext.Provider value={drive}>{children}</SyncContext.Provider>;
 };

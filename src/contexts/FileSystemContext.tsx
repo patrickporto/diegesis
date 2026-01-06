@@ -13,7 +13,7 @@ import { useNotes } from "@/contexts/NotesContext";
 export interface FileNode {
   id: string;
   name: string;
-  type: "folder" | "text" | "table" | string;
+  type: "folder" | "text" | "table" | "battlemap" | string;
   parentId: string | null;
   tags: string[]; // hex codes
   createdAt: string;
@@ -45,6 +45,7 @@ export interface FileSystemContextType {
   createFile: (name: string, parentId?: string | null) => string;
   createFolder: (name: string, parentId?: string | null) => string;
   createTable: (name: string, parentId?: string | null) => string;
+  createBattlemap: (name: string, parentId?: string | null) => string;
   deleteItem: (id: string) => void;
   renameItem: (id: string, newName: string) => void;
   moveItem: (id: string, newParentId: string | null) => void;
@@ -227,6 +228,21 @@ export function FileSystemProvider({ children }: { children: ReactNode }) {
     return id;
   };
 
+  const createBattlemap = (name: string, parentId: string | null = null) => {
+    const id = uuidv7();
+    const newNode: FileNode = {
+      id,
+      name,
+      type: "battlemap",
+      parentId,
+      tags: [],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    fileMap.set(id, newNode);
+    return id;
+  };
+
   const deleteItem = (id: string) => {
     // Recursive delete for folders would go here
     // For now simple delete (if folder has children they become orphaned in UI or we filter them)
@@ -290,6 +306,7 @@ export function FileSystemProvider({ children }: { children: ReactNode }) {
         createFile,
         createFolder,
         createTable,
+        createBattlemap,
         deleteItem,
         renameItem,
         moveItem,

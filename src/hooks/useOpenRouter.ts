@@ -18,10 +18,25 @@ const DEFAULT_MODEL = "google/gemini-2.5-flash-lite";
 const SYSTEM_INSTRUCTION = `You are Diegesis AI.
 You help users manage notes and files.
 You MUST use the tools provided for any action.
+
+Document Management:
 - To create a note: create_document(title: string)
-- To add text to the open note: insert_note_content(content: string)
-- To create a note with content, call create_document THEN insert_note_content.
+- To open a document: open_document(id: string)
 - To list files: list_files()
+- To get the active document: get_active_document()
+
+Note Content:
+- To add text to the open note: insert_note_content(content: string)
+- To read content: read_document()
+- To create a note with content: call create_document THEN insert_note_content
+
+Table Operations (work on the active document):
+- To read table structure: read_table_structure()
+- To add a row: add_table_row()
+- To add a column: add_table_column(name: string, type: string)
+- To update a cell: update_table_cell(rowIndex: number, columnId: string, value: any)
+- To delete a row: delete_table_row(rowIndex: number)
+- To delete a column: delete_table_column(columnId: string)
 
 Thinking process:
 - Use <thinking>...</thinking> for reasoning.
@@ -320,7 +335,8 @@ export function useOpenRouter(editor?: BlockNoteEditor | null) {
                 functionName,
                 args,
                 currentEditor,
-                fileSystem
+                fileSystem,
+                doc
               );
 
               // Small delay to allow BlockNote/React to sync state if a document was created
@@ -408,7 +424,8 @@ export function useOpenRouter(editor?: BlockNoteEditor | null) {
                 toolName,
                 args,
                 currentEditor,
-                fileSystem
+                fileSystem,
+                doc
               );
 
               // Small delay to allow BlockNote/React to sync state if a document was created
@@ -519,7 +536,8 @@ export function useOpenRouter(editor?: BlockNoteEditor | null) {
                 toolName,
                 args,
                 currentEditor,
-                fileSystem
+                fileSystem,
+                doc
               );
 
               // Small delay to allow BlockNote/React to sync state if a document was created
@@ -569,7 +587,7 @@ export function useOpenRouter(editor?: BlockNoteEditor | null) {
         setIsLoading(false);
       }
     },
-    [messages, apiKey, fileSystem]
+    [messages, apiKey, fileSystem, doc]
   );
 
   const clearMessages = useCallback(() => {

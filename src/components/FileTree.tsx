@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 
 import { ConfirmModal } from "@/components/ConfirmModal";
 import { ContextMenu } from "@/components/ContextMenu";
@@ -6,38 +7,43 @@ import { CreateItemModal } from "@/components/CreateItemModal";
 import { TagSelector } from "@/components/TagSelector";
 import { FileNode, useFileSystem } from "@/contexts/FileSystemContext";
 
+type ItemType = "text" | "table" | "folder" | "battlemap";
+
 interface FileTreeProps {
   className?: string;
 }
 
 export function FileTree({ className }: FileTreeProps) {
-  const { fileTree, createFolder, createFile, createTable, moveItem } =
-    useFileSystem();
+  const {
+    fileTree,
+    createFolder,
+    createFile,
+    createTable,
+    createBattlemap,
+    moveItem,
+  } = useFileSystem();
 
   // Modal State
   const [modalOpen, setModalOpen] = useState(false);
   const [modalParentId, setModalParentId] = useState<string | null>(null);
-  const [modalType, setModalType] = useState<"text" | "table" | "folder">(
-    "text"
-  );
+  const [modalType, setModalType] = useState<ItemType>("text");
 
   const openCreateModal = (
     parentId: string | null,
-    type: "text" | "table" | "folder" = "text"
+    type: ItemType = "text"
   ) => {
     setModalParentId(parentId);
     setModalType(type);
     setModalOpen(true);
   };
 
-  const handleCreateItem = (
-    name: string,
-    type: "text" | "table" | "folder"
-  ) => {
+  const handleCreateItem = (name: string, type: ItemType) => {
     if (type === "folder") {
       createFolder(name, modalParentId);
     } else if (type === "table") {
       createTable(name, modalParentId);
+    } else if (type === "battlemap") {
+      createBattlemap(name, modalParentId);
     } else {
       createFile(name, modalParentId);
     }
@@ -128,14 +134,9 @@ function FileTreeNode({
     type: "text" | "table" | "folder"
   ) => void;
 }) {
-  const {
-    fileTree,
-    activeFileId,
-    setActiveFileId,
-    deleteItem,
-    renameItem,
-    moveItem,
-  } = useFileSystem();
+  const { fileTree, activeFileId, deleteItem, renameItem, moveItem } =
+    useFileSystem();
+  const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState(node.name);
@@ -151,7 +152,7 @@ function FileTreeNode({
     if (node.type === "folder") {
       setIsOpen(!isOpen);
     } else {
-      setActiveFileId(node.id);
+      navigate(`/doc/${node.id}`);
     }
   };
 

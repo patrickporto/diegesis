@@ -73,7 +73,7 @@ export function TableEditor({ fileId, doc }: TableEditorProps) {
     rowsArray.observeDeep(observer);
     observer(); // Initial load
 
-    return () => rowsArray.unobserve(observer);
+    return () => rowsArray.unobserveDeep(observer);
   }, [rowsArray]);
 
   // Actions
@@ -338,11 +338,11 @@ const SelectCell = ({
       value={String(value ?? "")}
       onChange={(e) => onChange(e.target.value)}
     >
-      <option value="" disabled className="text-slate-300">
+      <option key="default" value="" disabled className="text-slate-300">
         Select option...
       </option>
-      {(options || []).map((opt) => (
-        <option key={opt.id} value={opt.label}>
+      {(options || []).map((opt, idx) => (
+        <option key={opt.id || `opt-${idx}`} value={opt.label}>
           {opt.label}
         </option>
       ))}
