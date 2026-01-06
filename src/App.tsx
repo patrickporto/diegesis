@@ -306,32 +306,43 @@ function App() {
   // If no CLIENT_ID, run in offline-only mode (no Google Drive sync)
   if (!CLIENT_ID) {
     return (
-      <NotesProvider>
-        <FileSystemProvider>
-          <OfflineSyncProvider>
-            <Routes>
-              <Route
-                path="/"
-                element={
-                  <>
-                    <URLSync />
-                    <MainLayout />
-                  </>
-                }
-              />
-              <Route
-                path="/doc/:id"
-                element={
-                  <>
-                    <URLSync />
-                    <MainLayout />
-                  </>
-                }
-              />
-            </Routes>
-          </OfflineSyncProvider>
-        </FileSystemProvider>
-      </NotesProvider>
+      <RealmProvider>
+        <NotesProvider>
+          <FileSystemProvider>
+            <OfflineSyncProvider>
+              <Routes>
+                <Route
+                  path="/"
+                  element={
+                    <>
+                      <URLSync />
+                      <MainLayout />
+                    </>
+                  }
+                />
+                <Route
+                  path="/:realmSlug"
+                  element={
+                    <>
+                      <URLSync />
+                      <MainLayout />
+                    </>
+                  }
+                />
+                <Route
+                  path="/:realmSlug/:documentSlug"
+                  element={
+                    <>
+                      <URLSync />
+                      <MainLayout />
+                    </>
+                  }
+                />
+              </Routes>
+            </OfflineSyncProvider>
+          </FileSystemProvider>
+        </NotesProvider>
+      </RealmProvider>
     );
   }
 
@@ -352,7 +363,16 @@ function App() {
                   }
                 />
                 <Route
-                  path="/doc/:id"
+                  path="/:realmSlug"
+                  element={
+                    <>
+                      <URLSync />
+                      <MainLayout />
+                    </>
+                  }
+                />
+                <Route
+                  path="/:realmSlug/:documentSlug"
                   element={
                     <>
                       <URLSync />

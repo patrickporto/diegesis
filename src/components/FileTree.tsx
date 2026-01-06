@@ -6,6 +6,7 @@ import { ContextMenu } from "@/components/ContextMenu";
 import { CreateItemModal } from "@/components/CreateItemModal";
 import { TagSelector } from "@/components/TagSelector";
 import { FileNode, useFileSystem } from "@/contexts/FileSystemContext";
+import { useRealm } from "@/contexts/RealmContext";
 
 type ItemType = "text" | "table" | "folder" | "battlemap";
 
@@ -136,6 +137,7 @@ function FileTreeNode({
 }) {
   const { fileTree, activeFileId, deleteItem, renameItem, moveItem } =
     useFileSystem();
+  const { activeRealm } = useRealm();
   const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -151,8 +153,8 @@ function FileTreeNode({
   const handleClick = () => {
     if (node.type === "folder") {
       setIsOpen(!isOpen);
-    } else {
-      navigate(`/doc/${node.id}`);
+    } else if (activeRealm) {
+      navigate(`/${activeRealm.slug}/${node.slug}`);
     }
   };
 

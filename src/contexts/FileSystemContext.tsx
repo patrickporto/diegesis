@@ -1,6 +1,7 @@
 import {
   createContext,
   ReactNode,
+  useCallback,
   useContext,
   useEffect,
   useState,
@@ -9,10 +10,12 @@ import { uuidv7 } from "uuidv7";
 import * as Y from "yjs";
 
 import { useNotes } from "@/contexts/NotesContext";
+import { generateUniqueSlug } from "@/utils/slug";
 
 export interface FileNode {
   id: string;
   name: string;
+  slug: string;
   type: "folder" | "text" | "table" | "battlemap" | string;
   parentId: string | null;
   tags: string[]; // hex codes
@@ -53,6 +56,7 @@ export interface FileSystemContextType {
   updateTagName: (color: string, newName: string) => void;
   activeFileId: string | null;
   setActiveFileId: (id: string | null) => void;
+  getFileBySlug: (slug: string) => FileNode | undefined;
   doc: Y.Doc;
 }
 
@@ -78,8 +82,17 @@ export function FileSystemProvider({ children }: { children: ReactNode }) {
       const nodesToMigrate: FileNode[] = [];
 
       fileMap.forEach((node) => {
-        // Migration: "file" -> "text"
-        if (node.type === "file") {
+        // Migration: Add slug to existing nodes that don't have one
+        if (!node.slug) {
+          const migratedNode = {
+            ...node,
+            slug: generateUniqueSlug(node.name),
+            type: node.type === "file" ? "text" : node.type,
+          };
+          nodes.push(migratedNode);
+          nodesToMigrate.push(migratedNode);
+        } else if (node.type === "file") {
+          // Migration: "file" -> "text"
           const migratedNode = { ...node, type: "text" };
           nodes.push(migratedNode);
           nodesToMigrate.push(migratedNode);
@@ -162,6 +175,7 @@ export function FileSystemProvider({ children }: { children: ReactNode }) {
       const welcomeNode: FileNode = {
         id: welcomeId,
         name: "Welcome / Migrated Note",
+        slug: "welcome",
         type: "text",
         parentId: null,
         tags: [],
@@ -188,6 +202,7 @@ export function FileSystemProvider({ children }: { children: ReactNode }) {
     const newNode: FileNode = {
       id,
       name,
+      slug: generateUniqueSlug(name),
       type: "text",
       parentId,
       tags: [],
@@ -203,6 +218,7 @@ export function FileSystemProvider({ children }: { children: ReactNode }) {
     const newNode: FileNode = {
       id,
       name,
+      slug: generateUniqueSlug(name),
       type: "table",
       parentId,
       tags: [],
@@ -218,6 +234,7 @@ export function FileSystemProvider({ children }: { children: ReactNode }) {
     const newNode: FileNode = {
       id,
       name,
+      slug: generateUniqueSlug(name),
       type: "folder",
       parentId,
       tags: [],
@@ -233,6 +250,7 @@ export function FileSystemProvider({ children }: { children: ReactNode }) {
     const newNode: FileNode = {
       id,
       name,
+      slug: generateUniqueSlug(name),
       type: "battlemap",
       parentId,
       tags: [],
@@ -299,6 +317,13 @@ export function FileSystemProvider({ children }: { children: ReactNode }) {
     tagDefsMap.set(color, newName);
   };
 
+  const getFileBySlug = useCallback(
+    (slug: string): FileNode | undefined => {
+      return Array.from(fileMap.values()).find((node) => node.slug === slug);
+    },
+    [fileMap]
+  );
+
   return (
     <FileSystemContext.Provider
       value={{
@@ -316,6 +341,7 @@ export function FileSystemProvider({ children }: { children: ReactNode }) {
         tagDefs,
         activeFileId,
         setActiveFileId,
+        getFileBySlug,
         doc,
       }}
     >

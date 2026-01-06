@@ -19,6 +19,21 @@ import { useRealm } from "@/contexts/RealmContext";
 
 export function NotesProvider({ children }: { children: ReactNode }) {
   const { activeRealmId } = useRealm();
+
+  return (
+    <SyncedNotesProvider key={activeRealmId} activeRealmId={activeRealmId}>
+      {children}
+    </SyncedNotesProvider>
+  );
+}
+
+function SyncedNotesProvider({
+  children,
+  activeRealmId,
+}: {
+  children: ReactNode;
+  activeRealmId: string;
+}) {
   const roomName =
     activeRealmId === "default"
       ? "diegesis-notes"
