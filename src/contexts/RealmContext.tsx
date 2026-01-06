@@ -12,7 +12,7 @@ export interface Realm {
   name: string;
 }
 
-interface RealmContextType {
+export interface RealmContextType {
   realms: Realm[];
   activeRealmId: string;
   createRealm: (name: string) => void;

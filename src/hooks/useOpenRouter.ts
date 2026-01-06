@@ -5,6 +5,7 @@ import { uuidv7 } from "uuidv7";
 import { executeOpenRouterTool, OPENROUTER_TOOLS } from "@/agent/tools";
 import { useFileSystem } from "@/contexts/FileSystemContext";
 import { useNotes } from "@/contexts/NotesContext";
+import { useRealm } from "@/contexts/RealmContext";
 
 export interface Message {
   id: string;
@@ -40,7 +41,15 @@ Table Operations (work on the active document):
 
 Thinking process:
 - Use <thinking>...</thinking> for reasoning.
-- After thinking, emit tool calls OR a final response.`;
+- After thinking, emit tool calls OR a final response.
+
+Realm Management:
+- Realms are separate workspaces/environments.
+- To list realms: list_realms()
+- To create a realm: create_realm(name: string)
+- To rename a realm: rename_realm(id: string, newName: string)
+- To delete a realm: delete_realm(id: string)
+- To switch realm: switch_realm(id: string) (CAUTION: This reloads the page)`;
 
 interface OpenRouterMessage {
   role: "system" | "user" | "assistant" | "tool";
@@ -66,6 +75,7 @@ export function useOpenRouter(editor?: BlockNoteEditor | null) {
   const [apiKey, setApiKeyState] = useState<string>("");
 
   const fileSystem = useFileSystem();
+  const realmContext = useRealm();
   const editorRef = useRef<BlockNoteEditor | null>(editor || null);
 
   // Sync ref with prop
@@ -336,6 +346,7 @@ export function useOpenRouter(editor?: BlockNoteEditor | null) {
                 args,
                 currentEditor,
                 fileSystem,
+                realmContext,
                 doc
               );
 
@@ -425,6 +436,7 @@ export function useOpenRouter(editor?: BlockNoteEditor | null) {
                 args,
                 currentEditor,
                 fileSystem,
+                realmContext,
                 doc
               );
 
@@ -537,6 +549,7 @@ export function useOpenRouter(editor?: BlockNoteEditor | null) {
                 args,
                 currentEditor,
                 fileSystem,
+                realmContext,
                 doc
               );
 
@@ -587,7 +600,7 @@ export function useOpenRouter(editor?: BlockNoteEditor | null) {
         setIsLoading(false);
       }
     },
-    [messages, apiKey, fileSystem, doc]
+    [messages, apiKey, fileSystem, doc, realmContext]
   );
 
   const clearMessages = useCallback(() => {

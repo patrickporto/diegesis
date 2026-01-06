@@ -5,6 +5,7 @@ import * as Y from "yjs";
 import { ColumnType } from "@/components/TableEditor/types";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { FileSystemContextType } from "@/contexts/FileSystemContext";
+import { RealmContextType } from "@/contexts/RealmContext";
 
 export const GEMINI_TOOLS = [
   {
@@ -148,6 +149,7 @@ export async function executeTool(
   args: Record<string, unknown>,
   editor: BlockNoteEditor | null | undefined, // Editor might be null if we are just doing file ops
   fileSystem?: FileSystemContextType, // We pass the file system context here
+  realmContext?: RealmContextType, // We pass the realm context here
   doc?: Y.Doc | null // Yjs doc for table manipulation
 ): Promise<string> {
   console.log(`Executing tool: ${functionName}`, args);
@@ -391,6 +393,54 @@ export async function executeTool(
           null,
           2
         );
+      }
+
+      // Realm Tools
+      case "list_realms": {
+        if (!realmContext) return "Error: Realm context not available.";
+        const realmsList = realmContext.realms
+          .map(
+            (r) =>
+              `- ${r.name} (ID: ${r.id}) ${
+                r.id === realmContext.activeRealmId ? "[ACTIVE]" : ""
+              }`
+          )
+          .join("\n");
+        return `Available Realms:\n${realmsList}`;
+      }
+
+      case "create_realm": {
+        if (!realmContext) return "Error: Realm context not available.";
+        const { name } = args as { name: string };
+        realmContext.createRealm(name);
+        return `Realm "${name}" created.`;
+      }
+
+      case "rename_realm": {
+        if (!realmContext) return "Error: Realm context not available.";
+        const { id, newName } = args as { id: string; newName: string };
+        realmContext.updateRealm(id, newName);
+        return `Realm with ID ${id} renamed to "${newName}".`;
+      }
+
+      case "delete_realm": {
+        if (!realmContext) return "Error: Realm context not available.";
+        const { id } = args as { id: string };
+        if (id === "default" || realmContext.realms.length <= 1) {
+          return "Error: Cannot delete the default realm or the last remaining realm.";
+        }
+        realmContext.deleteRealm(id);
+        return `Realm with ID ${id} deleted.`;
+      }
+
+      case "switch_realm": {
+        if (!realmContext) return "Error: Realm context not available.";
+        const { id } = args as { id: string };
+        const realm = realmContext.realms.find((r) => r.id === id);
+        if (!realm) return `Error: Realm with ID ${id} not found.`;
+
+        realmContext.switchRealm(id);
+        return `Switching to realm "${realm.name}" (ID: ${id}). The page will reload.`;
       }
 
       default:
@@ -703,16 +753,91 @@ export const OPENROUTER_TOOLS = [
       },
     },
   },
+
   {
     type: "function",
     function: {
-      name: "read_table_structure",
+      name: "list_realms",
       description:
-        "Reads the structure and data of the table in the currently active document. Returns column schema and all rows.",
+        "Lists all available authentication realms (workspaces) and indicates the active one.",
       parameters: {
         type: "object",
         properties: {},
         required: [],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "create_realm",
+      description: "Creates a new realm (workspace).",
+      parameters: {
+        type: "object",
+        properties: {
+          name: {
+            type: "string",
+            description: "The name of the new realm.",
+          },
+        },
+        required: ["name"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "rename_realm",
+      description: "Renames an existing realm.",
+      parameters: {
+        type: "object",
+        properties: {
+          id: {
+            type: "string",
+            description: "The ID of the realm to rename.",
+          },
+          newName: {
+            type: "string",
+            description: "The new name for the realm.",
+          },
+        },
+        required: ["id", "newName"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "delete_realm",
+      description:
+        "Deletes a realm. Cannot delete the active realm if it's the only one.",
+      parameters: {
+        type: "object",
+        properties: {
+          id: {
+            type: "string",
+            description: "The ID of the realm to delete.",
+          },
+        },
+        required: ["id"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "switch_realm",
+      description:
+        "Switches the active realm. This action will reload the application.",
+      parameters: {
+        type: "object",
+        properties: {
+          id: {
+            type: "string",
+            description: "The ID of the realm to switch to.",
+          },
+        },
+        required: ["id"],
       },
     },
   },
