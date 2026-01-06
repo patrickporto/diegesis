@@ -135,8 +135,14 @@ function FileTreeNode({
     type: "text" | "table" | "folder"
   ) => void;
 }) {
-  const { fileTree, activeFileId, deleteItem, renameItem, moveItem } =
-    useFileSystem();
+  const {
+    fileTree,
+    activeFileId,
+    deleteItem,
+    renameItem,
+    moveItem,
+    reorderItem,
+  } = useFileSystem();
   const { activeRealm } = useRealm();
   const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
@@ -147,6 +153,9 @@ function FileTreeNode({
     y: number;
   } | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [dropIndicator, setDropIndicator] = useState<
+    "top" | "bottom" | "inside" | null
+  >(null);
 
   const children = fileTree.filter((n) => n.parentId === node.id);
 
@@ -215,25 +224,62 @@ function FileTreeNode({
     e.stopPropagation();
   };
 
-  const handleDrop = (e: React.DragEvent) => {
+  const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    try {
-      const data = JSON.parse(e.dataTransfer.getData("application/json"));
-      if (data && data.id) {
-        if (node.type === "folder") {
-          moveItem(data.id, node.id);
-          setIsOpen(true);
-        }
+
+    const rect = e.currentTarget.getBoundingClientRect();
+    const y = e.clientY - rect.top;
+
+    if (node.type === "folder") {
+      if (y < rect.height * 0.25) {
+        setDropIndicator("top");
+      } else if (y > rect.height * 0.75) {
+        setDropIndicator("bottom");
+      } else {
+        setDropIndicator("inside");
       }
-    } catch (err) {
-      console.error(err);
+    } else {
+      if (y < rect.height * 0.5) {
+        setDropIndicator("top");
+      } else {
+        setDropIndicator("bottom");
+      }
     }
   };
 
-  const handleDragOver = (e: React.DragEvent) => {
-    if (node.type === "folder") {
-      e.preventDefault();
+  const handleDragLeave = () => {
+    setDropIndicator(null);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const indicator = dropIndicator;
+    setDropIndicator(null);
+
+    try {
+      const data = JSON.parse(e.dataTransfer.getData("application/json"));
+      if (!data || !data.id || data.id === node.id) return;
+
+      if (indicator === "inside" && node.type === "folder") {
+        moveItem(data.id, node.id);
+        setIsOpen(true);
+      } else if (indicator === "top") {
+        const siblings = fileTree
+          .filter((n) => n.parentId === node.parentId)
+          .sort((a, b) => (a.index ?? 0) - (b.index ?? 0));
+        const selfIdx = siblings.findIndex((s) => s.id === node.id);
+        const afterId = selfIdx > 0 ? siblings[selfIdx - 1].id : null;
+
+        moveItem(data.id, node.parentId);
+        reorderItem(data.id, afterId);
+      } else if (indicator === "bottom") {
+        moveItem(data.id, node.parentId);
+        reorderItem(data.id, node.id);
+      }
+    } catch (err) {
+      console.error(err);
     }
   };
 
@@ -260,15 +306,30 @@ function FileTreeNode({
         draggable={!isEditing}
         onDragStart={handleDragStart}
         onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
         onDrop={handleDrop}
         onContextMenu={handleContextMenu}
+        className="relative"
       >
+        {/* Drop Indicators */}
+        {dropIndicator === "top" && (
+          <div className="absolute top-0 left-0 right-0 h-0.5 bg-indigo-500 z-10" />
+        )}
+        {dropIndicator === "bottom" && (
+          <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-indigo-500 z-10" />
+        )}
+
         <div
           className={`group flex items-center gap-1 px-2 py-1.5 rounded cursor-pointer select-none transition-colors
         ${
           activeFileId === node.id
-            ? "bg-sky-100 text-sky-700"
+            ? "bg-indigo-100 text-indigo-700 font-medium"
             : "hover:bg-slate-100 text-slate-700"
+        }
+        ${
+          dropIndicator === "inside"
+            ? "bg-indigo-50 ring-1 ring-indigo-200"
+            : ""
         }
         `}
           onClick={handleClick}
@@ -333,7 +394,7 @@ function FileTreeNode({
                   {node.tags.map((tag) => (
                     <div
                       key={tag}
-                      className="w-2 h-2 rounded-full ring-1 ring-white"
+                      className="w-2.5 h-2.5 rounded-full ring-1 ring-white"
                       style={{ backgroundColor: tag }}
                     ></div>
                   ))}
@@ -344,14 +405,14 @@ function FileTreeNode({
 
           {/* Actions - Keep Mobile Friendly */}
           {!isEditing && (
-            <div className="flex items-center gap-1 md:invisible md:group-hover:visible">
+            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
               <TagSelector fileId={node.id} />
               <button
                 onClick={(e) => {
                   e.stopPropagation();
                   handleDeleteRequest();
                 }}
-                className="p-1 hover:bg-slate-200 rounded text-slate-400 hover:text-rose-500"
+                className="p-1 hover:bg-slate-200 rounded text-slate-400 hover:text-rose-500 transition-colors"
                 title="Delete"
               >
                 <svg
@@ -365,27 +426,6 @@ function FileTreeNode({
                     strokeLinejoin="round"
                     strokeWidth={2}
                     d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                  />
-                </svg>
-              </button>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleContextMenu(e);
-                }}
-                className="p-1 hover:bg-slate-200 rounded md:hidden text-slate-400"
-              >
-                <svg
-                  className="w-4 h-4"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z"
                   />
                 </svg>
               </button>

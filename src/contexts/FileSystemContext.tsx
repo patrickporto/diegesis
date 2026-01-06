@@ -18,6 +18,7 @@ export interface FileNode {
   slug: string;
   type: "folder" | "text" | "table" | "battlemap" | string;
   parentId: string | null;
+  index: number;
   tags: string[]; // hex codes
   createdAt: string;
   updatedAt: string;
@@ -52,6 +53,7 @@ export interface FileSystemContextType {
   deleteItem: (id: string) => void;
   renameItem: (id: string, newName: string) => void;
   moveItem: (id: string, newParentId: string | null) => void;
+  reorderItem: (id: string, afterId: string | null) => void;
   setFileTags: (id: string, tags: string[]) => void;
   updateTagName: (color: string, newName: string) => void;
   activeFileId: string | null;
@@ -82,18 +84,28 @@ export function FileSystemProvider({ children }: { children: ReactNode }) {
       const nodesToMigrate: FileNode[] = [];
 
       fileMap.forEach((node) => {
-        // Migration: Add slug to existing nodes that don't have one
-        if (!node.slug) {
-          const migratedNode = {
-            ...node,
-            slug: generateUniqueSlug(node.name),
-            type: node.type === "file" ? "text" : node.type,
-          };
-          nodes.push(migratedNode);
-          nodesToMigrate.push(migratedNode);
-        } else if (node.type === "file") {
-          // Migration: "file" -> "text"
-          const migratedNode = { ...node, type: "text" };
+        let needsLocalMigration = false;
+        const migratedNode = { ...node };
+
+        // Migration: Add slug
+        if (!migratedNode.slug) {
+          migratedNode.slug = generateUniqueSlug(migratedNode.name);
+          needsLocalMigration = true;
+        }
+
+        // Migration: type "file" -> "text"
+        if (migratedNode.type === "file") {
+          migratedNode.type = "text";
+          needsLocalMigration = true;
+        }
+
+        // Migration: Add index if missing
+        if (migratedNode.index === undefined) {
+          migratedNode.index = nodes.length; // Temporary index
+          needsLocalMigration = true;
+        }
+
+        if (needsLocalMigration) {
           nodes.push(migratedNode);
           nodesToMigrate.push(migratedNode);
         } else {
@@ -110,10 +122,15 @@ export function FileSystemProvider({ children }: { children: ReactNode }) {
         });
       }
 
-      // Sort by type (folder first) then name
+      // Sort by parent then by index
       nodes.sort((a, b) => {
-        if (a.type === b.type) return a.name.localeCompare(b.name);
-        return a.type === "folder" ? -1 : 1;
+        if (a.parentId === b.parentId) {
+          // Both in same folder, sort by index
+          return (a.index ?? 0) - (b.index ?? 0);
+        }
+        // Different parents, sorting doesn't matter much here as we rebuild tree in UI
+        // but let's keep it stable
+        return (a.parentId || "").localeCompare(b.parentId || "");
       });
       setFileTree(nodes);
     };
@@ -178,6 +195,7 @@ export function FileSystemProvider({ children }: { children: ReactNode }) {
         slug: "welcome",
         type: "text",
         parentId: null,
+        index: 0,
         tags: [],
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
@@ -197,6 +215,14 @@ export function FileSystemProvider({ children }: { children: ReactNode }) {
     };
   }, [fileMap, tagDefsMap, synced, doc]);
 
+  const getNextIndex = (parentId: string | null) => {
+    const siblings = Array.from(fileMap.values()).filter(
+      (n) => n.parentId === parentId
+    );
+    if (siblings.length === 0) return 0;
+    return Math.max(...siblings.map((s) => s.index ?? 0)) + 1;
+  };
+
   const createFile = (name: string, parentId: string | null = null) => {
     const id = uuidv7();
     const newNode: FileNode = {
@@ -205,6 +231,7 @@ export function FileSystemProvider({ children }: { children: ReactNode }) {
       slug: generateUniqueSlug(name),
       type: "text",
       parentId,
+      index: getNextIndex(parentId),
       tags: [],
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -221,6 +248,7 @@ export function FileSystemProvider({ children }: { children: ReactNode }) {
       slug: generateUniqueSlug(name),
       type: "table",
       parentId,
+      index: getNextIndex(parentId),
       tags: [],
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -237,6 +265,7 @@ export function FileSystemProvider({ children }: { children: ReactNode }) {
       slug: generateUniqueSlug(name),
       type: "folder",
       parentId,
+      index: getNextIndex(parentId),
       tags: [],
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -253,6 +282,7 @@ export function FileSystemProvider({ children }: { children: ReactNode }) {
       slug: generateUniqueSlug(name),
       type: "battlemap",
       parentId,
+      index: getNextIndex(parentId),
       tags: [],
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -289,6 +319,7 @@ export function FileSystemProvider({ children }: { children: ReactNode }) {
     const node = fileMap.get(id);
     if (node) {
       if (id === newParentId) return; // Can't move into self
+      if (node.parentId === newParentId) return; // Already there
 
       // Circular check: traverse up from newParentId
       let currentId = newParentId;
@@ -301,9 +332,45 @@ export function FileSystemProvider({ children }: { children: ReactNode }) {
       fileMap.set(id, {
         ...node,
         parentId: newParentId,
+        index: getNextIndex(newParentId),
         updatedAt: new Date().toISOString(),
       });
     }
+  };
+
+  const reorderItem = (id: string, afterId: string | null) => {
+    const node = fileMap.get(id);
+    if (!node) return;
+
+    // Use siblings for reordering
+    const siblings = Array.from(fileMap.values())
+      .filter((n) => n.parentId === node.parentId && n.id !== id)
+      .sort((a, b) => (a.index ?? 0) - (b.index ?? 0));
+
+    let newIndex: number;
+    if (afterId === null) {
+      newIndex = siblings.length > 0 ? (siblings[0].index ?? 0) - 1 : 0;
+    } else {
+      const afterNode = fileMap.get(afterId);
+      if (!afterNode) return;
+
+      const afterIdxInSiblings = siblings.findIndex((s) => s.id === afterId);
+
+      if (afterIdxInSiblings === siblings.length - 1) {
+        newIndex = (afterNode.index ?? 0) + 1;
+      } else {
+        newIndex =
+          ((afterNode.index ?? 0) +
+            (siblings[afterIdxInSiblings + 1].index ?? 0)) /
+          2;
+      }
+    }
+
+    fileMap.set(id, {
+      ...node,
+      index: newIndex,
+      updatedAt: new Date().toISOString(),
+    });
   };
 
   const setFileTags = (id: string, tags: string[]) => {
@@ -335,6 +402,7 @@ export function FileSystemProvider({ children }: { children: ReactNode }) {
         deleteItem,
         renameItem,
         moveItem,
+        reorderItem,
         setFileTags,
         updateTagName,
         fileTree,
