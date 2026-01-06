@@ -74,6 +74,10 @@ export function BattlemapEditor({ fileId, doc }: BattlemapEditorProps) {
   const [texts, setTexts] = useState<TextAnnotation[]>([]);
   const [activeTool, setActiveTool] = useState<ToolType>("select");
   const activeToolRef = useRef<ToolType>("select");
+  const settingsRef = useRef<BattlemapSettings>(settings);
+  useEffect(() => {
+    settingsRef.current = settings;
+  }, [settings]);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isDrawing, setIsDrawing] = useState(false);
   const [isReady, setIsReady] = useState(false);
@@ -721,10 +725,20 @@ export function BattlemapEditor({ fileId, doc }: BattlemapEditorProps) {
           isDragging = true;
           (container as Container & { isDragging: boolean }).isDragging = true;
           container.cursor = "grabbing";
+          if (appRef.current) {
+            appRef.current.canvas.style.cursor = "grabbing";
+          }
+
+          // Calculate offset from mouse to token center (not top-left)
           const worldPos = viewport.toLocal(e.global);
+          const currentSize = token.size * settingsRef.current.gridCellSize;
+          const tokenCenterX = container.x + currentSize / 2;
+          const tokenCenterY = container.y + currentSize / 2;
+
+          // Offset from mouse to token center
           dragOffset = {
-            x: worldPos.x - container.x,
-            y: worldPos.y - container.y,
+            x: worldPos.x - tokenCenterX,
+            y: worldPos.y - tokenCenterY,
           };
         });
 
@@ -734,24 +748,28 @@ export function BattlemapEditor({ fileId, doc }: BattlemapEditorProps) {
           if (!viewport) return;
 
           const worldPos = viewport.toLocal(e.global);
-          let newX = worldPos.x - dragOffset.x;
-          let newY = worldPos.y - dragOffset.y;
+          const currentSettings = settingsRef.current;
+          const currentSize = token.size * currentSettings.gridCellSize;
 
-          if (settings.snapToGrid) {
-            const centerX = newX + size / 2;
-            const centerY = newY + size / 2;
+          // Calculate where the token center should be based on mouse position
+          let centerX = worldPos.x - dragOffset.x;
+          let centerY = worldPos.y - dragOffset.y;
+
+          if (currentSettings.snapToGrid) {
+            // Snap the TOKEN CENTER to the nearest grid cell center
             const snapped = GridRenderer.snapToGrid(
               centerX,
               centerY,
-              settings.gridType,
-              settings.gridCellSize
+              currentSettings.gridType,
+              currentSettings.gridCellSize
             );
-            newX = snapped.x - size / 2;
-            newY = snapped.y - size / 2;
+            centerX = snapped.x;
+            centerY = snapped.y;
           }
 
-          container.x = newX;
-          container.y = newY;
+          // Position the token (top-left corner)
+          container.x = centerX - currentSize / 2;
+          container.y = centerY - currentSize / 2;
         });
 
         const onDragEnd = () => {
@@ -759,6 +777,9 @@ export function BattlemapEditor({ fileId, doc }: BattlemapEditorProps) {
           isDragging = false;
           (container as Container & { isDragging: boolean }).isDragging = false;
           container.cursor = "grab";
+          if (appRef.current) {
+            appRef.current.canvas.style.cursor = "";
+          }
 
           // Update Yjs
           const idx = tokensArray.toArray().findIndex((t) => t.id === token.id);
@@ -792,9 +813,50 @@ export function BattlemapEditor({ fileId, doc }: BattlemapEditorProps) {
         tokenContainers.set(token.id, container);
       }
 
+      // Update interactivity and cursor based on current tool
+      container.eventMode =
+        activeTool === "select" || activeTool === "eraser" ? "static" : "none";
+      container.cursor =
+        activeTool === "select"
+          ? "grab"
+          : activeTool === "eraser"
+          ? "crosshair"
+          : "default";
+
       // Update props that might change (position, size)
-      // Note: We are NOT updating texture here if imageUrl changes to avoid complexity for now,
-      // assuming immutable tokens mostly.
+      // Update size and children if grid scale changed
+      const content = container.children[0] as Container;
+      if (content) {
+        const sprite = content.getChildByLabel("sprite") as Sprite;
+        if (sprite) {
+          sprite.width = size;
+          sprite.height = size;
+          // Update mask
+          const mask = sprite.mask as Graphics;
+          if (mask) {
+            mask.clear();
+            mask.circle(size / 2, size / 2, size / 2);
+            mask.fill(0xffffff);
+          }
+        } else {
+          // Placeholder update
+          const circle = content.children.find(
+            (c) => c instanceof Graphics && c.label !== "sprite"
+          ) as Graphics;
+          if (circle) {
+            circle.clear();
+            circle.circle(size / 2, size / 2, size / 2);
+            circle.fill({ color: 0x4a90d9, alpha: 0.8 });
+            circle.stroke({ color: 0xffffff, width: 2 });
+          }
+          // Text update
+          const label = content.children.find((c) => c instanceof Text) as Text;
+          if (label) {
+            label.x = size / 2;
+            label.y = size + 10;
+          }
+        }
+      }
 
       // Update position (unless dragging? local update happens via event, this is syncing from others)
       // Actually, if we are dragging, we shouldn't force-update from state if state hasn't caught up?

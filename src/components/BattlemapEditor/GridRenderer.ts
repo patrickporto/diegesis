@@ -228,8 +228,11 @@ export class GridRenderer {
         return { x, y };
 
       case "square": {
-        const snappedX = Math.round(x / cellSize) * cellSize + cellSize / 2;
-        const snappedY = Math.round(y / cellSize) * cellSize + cellSize / 2;
+        // Find which cell the point is in, then return that cell's center
+        const cellX = Math.floor(x / cellSize);
+        const cellY = Math.floor(y / cellSize);
+        const snappedX = cellX * cellSize + cellSize / 2;
+        const snappedY = cellY * cellSize + cellSize / 2;
         return { x: snappedX, y: snappedY };
       }
 
