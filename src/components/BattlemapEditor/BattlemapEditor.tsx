@@ -1249,7 +1249,7 @@ export function BattlemapEditor({ fileId, doc }: BattlemapEditorProps) {
   );
 
   return (
-    <div className="relative w-full h-full bg-slate-900 overflow-hidden">
+    <div className="absolute inset-0 w-full h-full bg-slate-900 overflow-hidden">
       <div
         ref={containerRef}
         className="w-full h-full"

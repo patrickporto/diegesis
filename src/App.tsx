@@ -23,9 +23,10 @@ import {
 const CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 
 function MainLayout() {
-  const { activeFileId } = useFileSystem();
+  const { activeFileId, fileMap } = useFileSystem();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isLeftSidebarCollapsed, setIsLeftSidebarCollapsed] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
 
   const {
@@ -184,7 +185,11 @@ function MainLayout() {
       </div>
 
       {/* Desktop Sidebar: File Explorer */}
-      <div className="hidden md:flex w-64 h-full shrink-0">
+      <div
+        className={`hidden md:flex h-full shrink-0 transition-all duration-300 ${
+          isLeftSidebarCollapsed ? "w-0 overflow-hidden" : "w-64"
+        }`}
+      >
         <AppSidebar
           className="w-full"
           isSignedIn={isSignedIn}
@@ -215,6 +220,34 @@ function MainLayout() {
                     strokeLinejoin="round"
                     strokeWidth={2}
                     d="M4 6h16M4 12h16M4 18h16"
+                  />
+                </svg>
+              </button>
+            </div>
+            {/* Desktop Toggle Button */}
+            <div className="hidden md:block">
+              <button
+                className="p-1 text-slate-400 hover:text-sky-500 hover:bg-sky-50 rounded-lg transition-colors"
+                onClick={() =>
+                  setIsLeftSidebarCollapsed(!isLeftSidebarCollapsed)
+                }
+                title={
+                  isLeftSidebarCollapsed ? "Expand Sidebar" : "Collapse Sidebar"
+                }
+              >
+                <svg
+                  className={`w-5 h-5 transition-transform duration-300 ${
+                    isLeftSidebarCollapsed ? "rotate-180" : ""
+                  }`}
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M11 19l-7-7 7-7m8 14l-7-7 7-7"
                   />
                 </svg>
               </button>
@@ -259,7 +292,13 @@ function MainLayout() {
 
         {/* Editor Container */}
         <main className="flex-1 overflow-y-auto bg-slate-50 relative">
-          <div className="max-w-4xl mx-auto h-full px-2 py-4 sm:px-8 sm:py-8">
+          <div
+            className={
+              activeFileId && fileMap.get(activeFileId)?.type === "battlemap"
+                ? "h-full w-full overflow-hidden"
+                : "max-w-4xl mx-auto h-full px-2 py-4 sm:px-8 sm:py-8"
+            }
+          >
             {activeFileId ? (
               <Editor />
             ) : (

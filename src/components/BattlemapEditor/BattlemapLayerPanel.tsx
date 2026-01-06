@@ -106,9 +106,16 @@ export function BattlemapLayerPanel({
     .reverse(); // Render top-first
 
   return (
-    <div className="absolute top-20 right-4 w-72 bg-white rounded-xl shadow-xl border border-slate-200 z-30 flex flex-col max-h-[80vh]">
-      <div className="flex items-center justify-between p-3 border-b border-slate-100 bg-slate-50 rounded-t-xl">
-        <h3 className="font-semibold text-slate-800 text-sm">Layers</h3>
+    <div
+      className="absolute z-30 flex flex-col bg-white/90 backdrop-blur-md border border-slate-200 shadow-xl overflow-hidden
+      /* Mobile Styles */
+      bottom-0 left-0 right-0 rounded-t-2xl max-h-[60vh] h-[60vh] animate-in slide-in-from-bottom duration-300 pb-6 md:pb-0
+      /* Desktop Styles */
+      md:top-20 md:right-4 md:bottom-auto md:left-auto md:w-72 md:h-auto md:max-h-[80vh] md:rounded-xl md:animate-in md:slide-in-from-right-4
+    "
+    >
+      <div className="flex items-center justify-between p-4 border-b border-slate-200/50 bg-slate-50/50">
+        <h3 className="font-semibold text-slate-800">Layers</h3>
         <div className="flex items-center gap-2">
           <button
             onClick={handleAddLayer}
@@ -150,20 +157,24 @@ export function BattlemapLayerPanel({
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-2 space-y-1">
+      <div className="flex-1 overflow-y-auto p-3 space-y-2 scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-transparent">
         {sortedLayers.map((layer) => {
           // Find original index for move handler
           const originalIndex = layers.findIndex((l) => l.id === layer.id);
 
+          const isRestricted = layer.id === "background" || layer.id === "grid";
+
           return (
             <div
               key={layer.id}
-              className={`flex items-center gap-2 p-2 rounded-lg border border-transparent group ${
+              className={`flex items-center gap-2 p-2.5 rounded-lg border transition-all ${
                 activeLayerId === layer.id
-                  ? "bg-sky-50 border-sky-100"
-                  : "hover:bg-slate-50"
-              }`}
-              onClick={() => onSetActiveLayer(layer.id)}
+                  ? "bg-sky-50 border-sky-200 shadow-sm"
+                  : isRestricted
+                  ? "bg-slate-50 border-transparent opacity-80"
+                  : "bg-white border-transparent hover:bg-slate-50 hover:border-slate-200"
+              } ${!isRestricted ? "cursor-pointer group" : "cursor-default"}`}
+              onClick={() => !isRestricted && onSetActiveLayer(layer.id)}
             >
               {/* Visibility Toggle */}
               <button
@@ -277,50 +288,52 @@ export function BattlemapLayerPanel({
               </div>
 
               {/* Reorder / Delete Actions */}
-              <div className="flex flex-col opacity-0 group-hover:opacity-100 transition-opacity">
-                <button
-                  className="text-slate-400 hover:text-slate-600"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleMoveLayer(originalIndex, "down");
-                  }}
-                >
-                  <svg
-                    className="w-3 h-3"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
+              {!isRestricted && (
+                <div className="flex flex-col opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button
+                    className="text-slate-400 hover:text-slate-600 p-0.5"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleMoveLayer(originalIndex, "down");
+                    }}
                   >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M5 15l7-7 7 7"
-                    />
-                  </svg>
-                </button>
-                <button
-                  className="text-slate-400 hover:text-slate-600"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleMoveLayer(originalIndex, "up");
-                  }}
-                >
-                  <svg
-                    className="w-3 h-3"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
+                    <svg
+                      className="w-3 h-3"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M19 9l-7 7-7-7"
+                      />
+                    </svg>
+                  </button>
+                  <button
+                    className="text-slate-400 hover:text-slate-600 p-0.5"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleMoveLayer(originalIndex, "up");
+                    }}
                   >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M19 9l-7 7-7-7"
-                    />
-                  </svg>
-                </button>
-              </div>
+                    <svg
+                      className="w-3 h-3"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M5 15l7-7 7 7"
+                      />
+                    </svg>
+                  </button>
+                </div>
+              )}
 
               {!(layer.id === "background" || layer.id === "grid") && (
                 <button

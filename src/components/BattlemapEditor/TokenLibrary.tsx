@@ -154,17 +154,23 @@ export function TokenLibrary({
 
   return (
     <>
-      <div className="absolute top-20 left-4 w-64 bg-white rounded-xl shadow-xl border border-slate-200 z-30 flex flex-col max-h-[70vh] animate-in slide-in-from-left-4 duration-200">
-        <div className="flex items-center justify-between p-3 border-b border-slate-100 bg-slate-50 rounded-t-xl">
-          <h3 className="font-semibold text-slate-800 text-sm">
-            Token Library
-          </h3>
+      {/* Mobile: Bottom Sheet, Desktop: Floating Panel */}
+      <div
+        className="absolute z-30 flex flex-col bg-white/90 backdrop-blur-md border border-slate-200 shadow-xl overflow-hidden
+        /* Mobile Styles */
+        bottom-0 left-0 right-0 rounded-t-2xl max-h-[60vh] h-[60vh] animate-in slide-in-from-bottom duration-300 pb-6 md:pb-0
+        /* Desktop Styles */
+        md:top-20 md:left-4 md:bottom-auto md:right-auto md:w-72 md:h-auto md:max-h-[70vh] md:rounded-xl md:animate-in md:slide-in-from-left-4
+      "
+      >
+        <div className="flex items-center justify-between p-4 border-b border-slate-200/50 bg-slate-50/50">
+          <h3 className="font-semibold text-slate-800">Token Library</h3>
           <button
             onClick={onClose}
-            className="text-slate-400 hover:text-slate-600"
+            className="text-slate-400 hover:text-slate-600 p-1 hover:bg-slate-200/50 rounded-full transition-colors"
           >
             <svg
-              className="w-4 h-4"
+              className="w-5 h-5"
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
@@ -179,26 +185,32 @@ export function TokenLibrary({
           </button>
         </div>
 
-        <div className="p-3 overflow-y-auto flex-1 grid grid-cols-4 gap-2">
+        <div className="p-4 overflow-y-auto flex-1 grid grid-cols-4 gap-3 scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-transparent">
           {libraryTokens.map((token) => (
             <div
               key={token.id}
               draggable
               onDragStart={(e) => handleDragStart(e, token)}
-              className="cursor-grab active:cursor-grabbing"
+              className="group cursor-grab active:cursor-grabbing flex flex-col items-center gap-1"
               title={token.label}
             >
-              <TokenImage
-                src={token.imageUrl}
-                alt={token.label}
-                isSignedIn={isSignedIn}
-                getFileBlob={getFileBlob}
-              />
+              <div className="relative transition-transform group-hover:scale-105">
+                <TokenImage
+                  src={token.imageUrl}
+                  alt={token.label}
+                  isSignedIn={isSignedIn}
+                  getFileBlob={getFileBlob}
+                />
+              </div>
             </div>
           ))}
+
+          {/* Add Token Button (as a grid item for consistency or keep separate?)
+              Keeping separate footer is better for accessibility/emphasis.
+          */}
         </div>
 
-        <div className="p-3 border-t border-slate-100 bg-slate-50 rounded-b-xl">
+        <div className="p-4 border-t border-slate-200/50 bg-slate-50/50">
           <input
             ref={fileInputRef}
             type="file"
@@ -208,10 +220,10 @@ export function TokenLibrary({
           />
           <button
             onClick={() => fileInputRef.current?.click()}
-            className="w-full py-2 text-sm bg-sky-500 hover:bg-sky-600 text-white rounded-lg flex items-center justify-center gap-2 transition-colors"
+            className="w-full py-2.5 text-sm font-medium bg-sky-500 hover:bg-sky-600 text-white rounded-lg flex items-center justify-center gap-2 transition-colors shadow-sm"
           >
             <svg
-              className="w-4 h-4"
+              className="w-5 h-5"
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
@@ -223,7 +235,7 @@ export function TokenLibrary({
                 d="M12 4v16m8-8H4"
               />
             </svg>
-            Add Token
+            Add New Token
           </button>
         </div>
       </div>
