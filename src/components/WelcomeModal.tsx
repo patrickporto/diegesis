@@ -1,19 +1,17 @@
 import { useEffect, useState } from "react";
 
-import { useNotes } from "@/contexts/NotesContext";
 import { useSync } from "@/contexts/SyncContext";
+
+const ONBOARDING_STORAGE_KEY = "diegesis_onboarding_completed";
 
 export function WelcomeModal() {
   const { isSignedIn, handleAuthClick } = useSync();
-  const { doc } = useNotes();
   const [isVisible, setIsVisible] = useState(false);
 
   useEffect(() => {
-    // Check if onboarding is completed in Yjs settings
-    const settings = doc.getMap("settings");
-    const onboardingCompleted = settings.get("onboarding_completed");
-
     const checkVisibility = () => {
+      const onboardingCompleted =
+        localStorage.getItem(ONBOARDING_STORAGE_KEY) === "true";
       // Show if not signed in AND onboarding not completed
       if (!isSignedIn && !onboardingCompleted) {
         setIsVisible(true);
@@ -25,20 +23,11 @@ export function WelcomeModal() {
     // Initial check
     checkVisibility();
 
-    // Listen for changes in Yjs settings (e.g., from another tab)
-    const observer = () => {
-      checkVisibility();
-    };
-    settings.observe(observer);
-
-    return () => {
-      settings.unobserve(observer);
-    };
-  }, [doc, isSignedIn]);
+    // We no longer need to observe Yjs settings since it's global localStorage
+  }, [isSignedIn]);
 
   const handleWorkLocally = () => {
-    const settings = doc.getMap("settings");
-    settings.set("onboarding_completed", true);
+    localStorage.setItem(ONBOARDING_STORAGE_KEY, "true");
     setIsVisible(false);
   };
 

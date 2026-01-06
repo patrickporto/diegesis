@@ -151,10 +151,13 @@ export function FileSystemProvider({ children }: { children: ReactNode }) {
     tagObserver(); // Initial load tags
 
     // Migration Logic: If empty but old content exists
-    if (fileMap.size === 0) {
-      // We can check if "document-store" fragment has content, but for simplicity
-      // let's just create a Welcome file if the system is empty.
-      // In a real migration we would move the content.
+    // Only trigger if synced AND the map is truly empty.
+    const WELCOME_NOTE_CREATED_KEY = "diegesis_welcome_note_created";
+    const hasAlreadyCreatedWelcome =
+      localStorage.getItem(WELCOME_NOTE_CREATED_KEY) === "true";
+
+    if (synced && fileMap.size === 0 && !hasAlreadyCreatedWelcome) {
+      // Create a Welcome file if the system is empty for the first time.
       const welcomeId = uuidv7();
       const welcomeNode: FileNode = {
         id: welcomeId,
@@ -165,15 +168,12 @@ export function FileSystemProvider({ children }: { children: ReactNode }) {
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
-      fileMap.set(welcomeId, welcomeNode);
 
-      // "Migrate" content by aliasing or just initing as active.
-      // Note: The actual content migration (moving XML fragments) is complex in Yjs
-      // without low-level updates. For now, we point the new welcome file
-      // to use the "document-store" if we wanted, but our logic uses "content-${id}".
-      // So the old content is technically "orphaned" unless we manually copy it.
-      // Strategy: We will treat "document-store" as a legacy fragment and user starts fresh
-      // OR we just use the new system.
+      doc.transact(() => {
+        fileMap.set(welcomeId, welcomeNode);
+        localStorage.setItem(WELCOME_NOTE_CREATED_KEY, "true");
+      });
+
       setActiveFileId(welcomeId);
     }
 
