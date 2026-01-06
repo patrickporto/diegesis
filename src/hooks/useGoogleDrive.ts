@@ -360,6 +360,62 @@ export const useGoogleDrive = (doc: Y.Doc | undefined, fileName: string) => {
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, [hasPendingChanges, flushPendingChanges]);
 
+  const uploadFile = useCallback(
+    async (
+      file: File
+    ): Promise<{ id: string; webViewLink: string; thumbnailLink: string }> => {
+      if (!accessToken) throw new Error("Not signed in");
+
+      const metadata = {
+        name: file.name,
+        mimeType: file.type,
+      };
+
+      const form = new FormData();
+      form.append(
+        "metadata",
+        new Blob([JSON.stringify(metadata)], { type: "application/json" })
+      );
+      form.append("file", file);
+
+      const response = await fetch(
+        "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,webViewLink,thumbnailLink",
+        {
+          method: "POST",
+          headers: { Authorization: `Bearer ${accessToken}` },
+          body: form,
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error("Failed to upload file");
+      }
+
+      return await response.json();
+    },
+    [accessToken]
+  );
+
+  const getFileBlob = useCallback(
+    async (fileId: string): Promise<Blob> => {
+      if (!accessToken) throw new Error("Not signed in");
+
+      const response = await fetch(
+        `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`,
+        {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch file");
+      }
+
+      return await response.blob();
+    },
+    [accessToken]
+  );
+
   return {
     isSignedIn,
     isInitialized: true,
@@ -372,5 +428,7 @@ export const useGoogleDrive = (doc: Y.Doc | undefined, fileName: string) => {
     accessToken,
     hasPendingChanges,
     flushPendingChanges,
+    uploadFile,
+    getFileBlob,
   };
 };

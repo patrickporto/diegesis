@@ -6,6 +6,7 @@ interface BattlemapToolbarProps {
   activeTool: ToolType;
   onToolChange: (tool: ToolType) => void;
   onSettingsClick: () => void;
+  onLayersClick: () => void;
 }
 
 const tools: { id: ToolType; label: string; icon: React.ReactNode }[] = [
@@ -110,6 +111,7 @@ export function BattlemapToolbar({
   activeTool,
   onToolChange,
   onSettingsClick,
+  onLayersClick,
 }: BattlemapToolbarProps) {
   return (
     <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-50">
@@ -130,6 +132,26 @@ export function BattlemapToolbar({
         ))}
 
         <div className="w-px h-6 bg-slate-200 mx-1" />
+
+        <button
+          onClick={onLayersClick}
+          title="Layers"
+          className="p-2.5 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-all"
+        >
+          <svg
+            className="w-5 h-5"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M4 6h16M4 12h16M4 18h16"
+            />
+          </svg>
+        </button>
 
         <button
           onClick={onSettingsClick}

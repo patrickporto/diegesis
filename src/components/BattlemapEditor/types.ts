@@ -7,6 +7,18 @@ export type GridType =
 
 export type GridColor = "black" | "white" | "orange";
 
+// type LayerId = "map" | "tokens" | "dm";  <-- DEPRECATED
+
+export interface Layer {
+  id: string;
+  name: string;
+  type: "tokens" | "drawings" | "dm"; // Keep 'dm' special? Or just a type?
+  visible: boolean;
+  locked: boolean;
+  opacity: number;
+  sortOrder: number;
+}
+
 export interface BattlemapSettings {
   gridType: GridType;
   gridLineWidth: number; // pixels: 1-5
@@ -15,6 +27,8 @@ export interface BattlemapSettings {
   gridCellSize: number; // pixels per cell
   snapToGrid: boolean;
   backgroundImage?: string; // base64 or url
+  layers?: Layer[]; // Array of dynamic layers. If undefined (legacy), we migrate.
+  activeLayerId?: string; // ID of the currently active layer
 }
 
 export interface Token {
@@ -24,6 +38,7 @@ export interface Token {
   imageUrl: string;
   label?: string;
   size: number; // grid cells diameter
+  layer: string;
 }
 
 export interface TextAnnotation {
@@ -33,6 +48,7 @@ export interface TextAnnotation {
   text: string;
   fontSize: number;
   color: string;
+  layer: string;
 }
 
 export interface DrawingPath {
@@ -40,6 +56,7 @@ export interface DrawingPath {
   points: number[]; // [x1, y1, x2, y2, ...]
   color: string;
   width: number;
+  layer: string;
 }
 
 export type ToolType = "select" | "token" | "text" | "draw" | "eraser";

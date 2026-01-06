@@ -15,6 +15,10 @@ export interface SyncContextType {
   accessToken: string | null;
   hasPendingChanges: boolean;
   flushPendingChanges: () => Promise<void>;
+  uploadFile: (
+    file: File
+  ) => Promise<{ id: string; webViewLink: string; thumbnailLink: string }>;
+  getFileBlob: (fileId: string) => Promise<Blob>;
 }
 
 const SyncContext = createContext<SyncContextType | null>(null);
@@ -45,6 +49,12 @@ export const OfflineSyncProvider = ({ children }: { children: ReactNode }) => {
     hasPendingChanges: false,
     flushPendingChanges: async () => {
       // Nothing to flush in offline mode
+    },
+    uploadFile: async () => {
+      throw new Error("Upload not available in offline mode");
+    },
+    getFileBlob: async () => {
+      throw new Error("File fetch not available in offline mode");
     },
   };
 
