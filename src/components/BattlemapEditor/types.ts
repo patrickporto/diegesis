@@ -66,7 +66,13 @@ export interface DrawingPath {
 export type ToolType = "select" | "token" | "text" | "draw" | "eraser" | "fog";
 
 export type FogToolMode = "reveal" | "hide";
-export type FogToolType = "brush" | "rect" | "ellipse" | "polygon" | "grid";
+export type FogToolType =
+  | "brush"
+  | "rect"
+  | "ellipse"
+  | "polygon"
+  | "grid"
+  | "fill";
 
 export interface FogShape {
   id: string;

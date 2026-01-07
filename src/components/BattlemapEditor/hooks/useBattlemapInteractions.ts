@@ -12,6 +12,8 @@ import {
   TextAnnotation,
 } from "../types";
 
+const FOG_SIZE = 3000;
+
 interface UseBattlemapInteractionsProps {
   app: Application | null;
   viewport: Viewport | null;
@@ -108,7 +110,15 @@ export function useBattlemapInteractions({
         const strokeAlpha = 0.8;
         const strokeWidth = 2;
 
-        if (fogTool === "brush") {
+        if (fogTool === "fill") {
+          g.rect(0, 0, FOG_SIZE, FOG_SIZE);
+          g.fill({ color: fillColor, alpha: fillAlpha });
+          g.stroke({
+            color: strokeColor,
+            width: strokeWidth,
+            alpha: strokeAlpha,
+          });
+        } else if (fogTool === "brush") {
           // BRUSH: Show circle cursor (hover) or brushed path (drawing)
           g.circle(x, y, brushSize / 2);
           g.fill({ color: fillColor, alpha: 0.3 }); // Lighter fill for cursor
@@ -235,7 +245,19 @@ export function useBattlemapInteractions({
       const { x, y } = point;
 
       if (activeTool === "fog") {
-        if (fogTool === "grid") {
+        if (fogTool === "fill") {
+          doc.transact(() => {
+            fogArray.push([
+              {
+                id: uuidv7(),
+                type: "rect",
+                data: [0, 0, FOG_SIZE, FOG_SIZE],
+                operation: fogMode === "hide" ? "add" : "sub",
+              },
+            ]);
+          });
+          return;
+        } else if (fogTool === "grid") {
           const cellX =
             Math.floor(x / settings.gridCellSize) * settings.gridCellSize;
           const cellY =
