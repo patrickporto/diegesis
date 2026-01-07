@@ -12,7 +12,7 @@ export type GridColor = "black" | "white" | "orange";
 export interface Layer {
   id: string;
   name: string;
-  type: "tokens" | "drawings" | "dm"; // Keep 'dm' special? Or just a type?
+  type: "tokens" | "map" | "fog";
   visible: boolean;
   locked: boolean;
   opacity: number;
@@ -26,6 +26,7 @@ export interface BattlemapSettings {
   gridOpacity: number; // 0-1
   gridCellSize: number; // pixels per cell
   snapToGrid: boolean;
+  fogOpacity: number; // 0-1, opacity of fog of war overlay
   backgroundImage?: string; // base64 or url
   layers?: Layer[]; // Array of dynamic layers. If undefined (legacy), we migrate.
   activeLayerId?: string; // ID of the currently active layer
@@ -62,7 +63,19 @@ export interface DrawingPath {
   layer: string;
 }
 
-export type ToolType = "select" | "token" | "text" | "draw" | "eraser";
+export type ToolType = "select" | "token" | "text" | "draw" | "eraser" | "fog";
+
+export type FogToolMode = "reveal" | "hide";
+export type FogToolType = "brush" | "rect" | "ellipse" | "polygon" | "grid";
+
+export interface FogShape {
+  id: string;
+  type: "brush" | "poly" | "rect" | "ellipse";
+  data: number[]; // Points [x,y...] for brush/poly, [x,y,w,h] for rect/ellipse
+  operation: "add" | "sub"; // 'add' = Hide (Draw Fog), 'sub' = Reveal (Cut Hole)
+  opacity?: number;
+  width?: number; // Brush stroke width
+}
 
 export const DEFAULT_SETTINGS: BattlemapSettings = {
   gridType: "square",
@@ -71,6 +84,7 @@ export const DEFAULT_SETTINGS: BattlemapSettings = {
   gridOpacity: 0.3,
   gridCellSize: 50,
   snapToGrid: true,
+  fogOpacity: 0.85,
 };
 
 export const GRID_COLORS: Record<GridColor, number> = {

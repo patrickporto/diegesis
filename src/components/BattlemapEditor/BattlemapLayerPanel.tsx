@@ -101,7 +101,10 @@ export function BattlemapLayerPanel({
   };
 
   // Sort layers by sortOrder (although usually they are stored sorted)
+  // Filter out system layers that should not be user-managed (fog, grid, background)
+  const systemLayerIds = ["fog", "grid", "background"];
   const sortedLayers = [...layers]
+    .filter((l) => !systemLayerIds.includes(l.id))
     .sort((a, b) => a.sortOrder - b.sortOrder)
     .reverse(); // Render top-first
 

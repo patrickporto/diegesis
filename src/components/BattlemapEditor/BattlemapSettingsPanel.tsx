@@ -229,6 +229,25 @@ export function BattlemapSettingsPanel({
               />
             </button>
           </div>
+
+          {/* Fog Opacity */}
+          <div className="space-y-2">
+            <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
+              Opacidade do Fog of War (
+              {Math.round((settings.fogOpacity ?? 0.85) * 100)}%)
+            </label>
+            <input
+              type="range"
+              min="0.1"
+              max="1"
+              step="0.05"
+              value={settings.fogOpacity ?? 0.85}
+              onChange={(e) =>
+                onSettingsChange({ fogOpacity: Number(e.target.value) })
+              }
+              className="w-full accent-sky-500"
+            />
+          </div>
         </div>
       </div>
     </>

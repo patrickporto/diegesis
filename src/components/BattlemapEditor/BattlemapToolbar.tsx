@@ -1,12 +1,20 @@
 import React from "react";
 
-import { ToolType } from "./types";
+import { FogToolMode, FogToolType, ToolType } from "./types";
 
 interface BattlemapToolbarProps {
   activeTool: ToolType;
   onToolChange: (tool: ToolType) => void;
   onSettingsClick: () => void;
   onTokensClick: () => void;
+
+  // Fog Specific
+  fogMode?: FogToolMode;
+  onFogModeChange?: (mode: FogToolMode) => void;
+  fogTool?: FogToolType;
+  onFogToolChange?: (tool: FogToolType) => void;
+  brushSize?: number;
+  onBrushSizeChange?: (size: number) => void;
 }
 
 const tools: { id: ToolType; label: string; icon: React.ReactNode }[] = [
@@ -86,16 +94,209 @@ const tools: { id: ToolType; label: string; icon: React.ReactNode }[] = [
       </svg>
     ),
   },
+  {
+    id: "fog",
+    label: "Fog of War",
+    icon: (
+      <svg
+        className="w-5 h-5"
+        fill="none"
+        viewBox="0 0 24 24"
+        stroke="currentColor"
+      >
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth={2}
+          d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"
+        />
+      </svg>
+    ),
+  },
 ];
+
+const fogSubTools: { id: FogToolType; label: string; icon: React.ReactNode }[] =
+  [
+    {
+      id: "brush",
+      label: "Brush",
+      icon: (
+        <svg
+          className="w-4 h-4"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
+          />
+        </svg>
+      ),
+    },
+    {
+      id: "rect",
+      label: "Rectangle",
+      icon: (
+        <svg
+          className="w-4 h-4"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+        >
+          <rect
+            x="3"
+            y="3"
+            width="18"
+            height="18"
+            rx="2"
+            ry="2"
+            strokeWidth={2}
+          />
+        </svg>
+      ),
+    },
+    {
+      id: "ellipse",
+      label: "Ellipse",
+      icon: (
+        <svg
+          className="w-4 h-4"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+        >
+          <ellipse cx="12" cy="12" rx="9" ry="6" strokeWidth={2} />
+        </svg>
+      ),
+    },
+    {
+      id: "polygon",
+      label: "Polygon",
+      icon: (
+        <svg
+          className="w-4 h-4"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M12 2l9 17H3l9-17z" // Simplified poly representation
+          />
+        </svg>
+      ),
+    },
+    {
+      id: "grid",
+      label: "Grid Cell",
+      icon: (
+        <svg
+          className="w-4 h-4"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"
+          />
+        </svg>
+      ),
+    },
+  ];
 
 export function BattlemapToolbar({
   activeTool,
   onToolChange,
   onSettingsClick,
   onTokensClick,
+  fogMode,
+  onFogModeChange,
+  fogTool,
+  onFogToolChange,
+  brushSize,
+  onBrushSizeChange,
 }: BattlemapToolbarProps) {
   return (
-    <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-50">
+    <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-50 flex flex-col items-center gap-2">
+      {/* Fog Sub-Toolbar */}
+      {activeTool === "fog" && (
+        <div className="flex items-center gap-2 px-3 py-2 bg-slate-800/90 backdrop-blur-lg border border-slate-700 rounded-xl shadow-xl animate-fade-in-up">
+          {/* Mode Toggle */}
+          <div className="flex bg-slate-900 rounded-lg p-0.5 border border-slate-700">
+            <button
+              onClick={() => onFogModeChange?.("hide")}
+              className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${
+                fogMode === "hide"
+                  ? "bg-slate-700 text-white shadow-sm"
+                  : "text-slate-400 hover:text-slate-200"
+              }`}
+            >
+              Hide (Add)
+            </button>
+            <button
+              onClick={() => onFogModeChange?.("reveal")}
+              className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${
+                fogMode === "reveal"
+                  ? "bg-slate-700 text-white shadow-sm"
+                  : "text-slate-400 hover:text-slate-200"
+              }`}
+            >
+              Reveal (Sub)
+            </button>
+          </div>
+
+          <div className="w-px h-5 bg-slate-700 mx-1" />
+
+          {/* Sub-tools */}
+          <div className="flex gap-1">
+            {fogSubTools.map((t) => (
+              <button
+                key={t.id}
+                onClick={() => onFogToolChange?.(t.id)}
+                title={t.label}
+                className={`p-1.5 rounded-md transition-colors ${
+                  fogTool === t.id
+                    ? "bg-sky-600 text-white"
+                    : "text-slate-400 hover:bg-slate-700 hover:text-slate-200"
+                }`}
+              >
+                {t.icon}
+              </button>
+            ))}
+          </div>
+
+          {/* Brush Size Slider (Only for brush) */}
+          {fogTool === "brush" && (
+            <>
+              <div className="w-px h-5 bg-slate-700 mx-1" />
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-slate-400 font-mono w-4">
+                  {brushSize}
+                </span>
+                <input
+                  type="range"
+                  min="10"
+                  max="200"
+                  step="10"
+                  value={brushSize}
+                  onChange={(e) => onBrushSizeChange?.(Number(e.target.value))}
+                  className="w-20 h-1 bg-slate-600 rounded-lg appearance-none cursor-pointer accent-sky-500"
+                />
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Main Toolbar */}
       <div className="flex items-center gap-1 px-2 py-1.5 bg-white/90 backdrop-blur-lg border border-slate-200 rounded-xl shadow-xl">
         {tools.map((tool) => (
           <button
