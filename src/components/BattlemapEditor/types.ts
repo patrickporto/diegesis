@@ -29,6 +29,9 @@ export interface BattlemapSettings {
   backgroundImage?: string; // base64 or url
   layers?: Layer[]; // Array of dynamic layers. If undefined (legacy), we migrate.
   activeLayerId?: string; // ID of the currently active layer
+  viewportX?: number; // Viewport position
+  viewportY?: number;
+  viewportScale?: number; // Viewport zoom level
 }
 
 export interface Token {

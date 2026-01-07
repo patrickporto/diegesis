@@ -12,14 +12,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { uuidv7 } from "uuidv7";
 import * as Y from "yjs";
 
+import { useNotes } from "@/contexts/NotesContext";
 import { useSync } from "@/contexts/SyncContext";
 
-import { BattlemapLayerPanel } from "./BattlemapLayerPanel";
 import { BattlemapSettingsPanel } from "./BattlemapSettingsPanel";
 import { BattlemapToolbar } from "./BattlemapToolbar";
 import { ContextMenu, ContextMenuAction } from "./ContextMenu";
 import { GridRenderer } from "./GridRenderer";
-import { TokenLibrary } from "./TokenLibrary";
+import { TokenManagerSidebar } from "./TokenManagerSidebar";
 import {
   BattlemapSettings,
   DEFAULT_SETTINGS,
@@ -37,7 +37,8 @@ interface BattlemapEditorProps {
 
 export function BattlemapEditor({ fileId, doc }: BattlemapEditorProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const [isLayerPanelOpen, setIsLayerPanelOpen] = useState(false);
+  const [isTokensOpen, setIsTokensOpen] = useState(false);
+  const { synced } = useNotes();
 
   const appRef = useRef<Application | null>(null);
   const viewportRef = useRef<Viewport | null>(null);
@@ -256,6 +257,7 @@ export function BattlemapEditor({ fileId, doc }: BattlemapEditorProps) {
 
     // Capture ref value to ensure stable cleanup without lint warnings
     const layerContainers = layerContainersRef.current;
+    const tokenContainers = tokenContainersRef.current;
 
     let isMounted = true;
     let app: Application | null = null;
@@ -303,14 +305,6 @@ export function BattlemapEditor({ fileId, doc }: BattlemapEditorProps) {
         .wheel()
         .decelerate();
 
-      // Initially pause drag if starting with a tool other than select
-      // Handled by separate useEffect now
-      // console.log("Init complete");
-
-      // For "Space to Pan", we might need custom handling or "keyToPress" if we want that.
-      // Let's stick to Wheel Zoom + Middle/Right Pan by default?
-      // viewport.drag({ mouseButtons: "middle-right" });
-
       app.stage.addChild(viewport);
       viewportRef.current = viewport;
 
@@ -320,12 +314,6 @@ export function BattlemapEditor({ fileId, doc }: BattlemapEditorProps) {
       preview.zIndex = 10000; // Always on top
       viewport.addChild(preview);
       previewGraphicsRef.current = preview;
-
-      // Initial Layers Setup handled in useEffect now
-
-      // Create containers for layers
-      // We'll do this in a separate useEffect that reacts to `settings.layers`
-      // But we need a root for them.
 
       // Handle resize
       const handleResize = () => {
@@ -378,9 +366,40 @@ export function BattlemapEditor({ fileId, doc }: BattlemapEditorProps) {
         appRef.current = null;
         viewportRef.current = null;
         layerContainers.clear();
+
+        // Properly destroy token containers to remove event handlers
+        tokenContainers.forEach((container) => {
+          try {
+            container.destroy({ children: true });
+          } catch (e) {
+            // Ignore
+          }
+        });
+        tokenContainers.clear();
       }
     };
   }, [fileId]);
+
+  // Viewport restoration logic
+  const hasRestoredViewportRef = useRef(false);
+  useEffect(() => {
+    hasRestoredViewportRef.current = false;
+  }, [fileId]);
+
+  useEffect(() => {
+    if (isReady && viewportRef.current && !hasRestoredViewportRef.current) {
+      if (
+        settings.viewportX !== undefined &&
+        settings.viewportY !== undefined
+      ) {
+        viewportRef.current.moveCorner(settings.viewportX, settings.viewportY);
+        if (settings.viewportScale !== undefined) {
+          viewportRef.current.scale.set(settings.viewportScale);
+        }
+        hasRestoredViewportRef.current = true;
+      }
+    }
+  }, [isReady, settings.viewportX, settings.viewportY, settings.viewportScale]);
 
   // Space to Pan logic
   useEffect(() => {
@@ -494,6 +513,35 @@ export function BattlemapEditor({ fileId, doc }: BattlemapEditorProps) {
     renderGrid();
   }, [renderGrid]);
 
+  // Save viewport state to settings
+  useEffect(() => {
+    const viewport = viewportRef.current;
+    if (!viewport || !isReady) return;
+
+    let saveTimeout: NodeJS.Timeout;
+
+    const saveViewportState = () => {
+      // Debounce to avoid excessive saves during panning/zooming
+      clearTimeout(saveTimeout);
+      saveTimeout = setTimeout(() => {
+        handleSettingsChange({
+          viewportX: viewport.corner.x,
+          viewportY: viewport.corner.y,
+          viewportScale: viewport.scale.x,
+        });
+      }, 500); // 500ms debounce
+    };
+
+    viewport.on("moved", saveViewportState);
+    viewport.on("zoomed", saveViewportState);
+
+    return () => {
+      viewport.off("moved", saveViewportState);
+      viewport.off("zoomed", saveViewportState);
+      clearTimeout(saveTimeout);
+    };
+  }, [isReady, handleSettingsChange]);
+
   const { uploadFile, getFileBlob, isSignedIn } = useSync();
 
   // Handle Token Action (Delete, Move)
@@ -583,6 +631,14 @@ export function BattlemapEditor({ fileId, doc }: BattlemapEditorProps) {
 
   // Render tokens optimized
   useEffect(() => {
+    console.log(
+      "[Token Render] Effect running. Tokens:",
+      tokens.length,
+      "isReady:",
+      isReady,
+      "layers:",
+      settings.layers?.length
+    );
     const currentIds = new Set(tokens.map((t) => t.id));
     const tokenContainers = tokenContainersRef.current;
 
@@ -725,7 +781,7 @@ export function BattlemapEditor({ fileId, doc }: BattlemapEditorProps) {
           isDragging = true;
           (container as Container & { isDragging: boolean }).isDragging = true;
           container.cursor = "grabbing";
-          if (appRef.current) {
+          if (appRef.current?.canvas) {
             appRef.current.canvas.style.cursor = "grabbing";
           }
 
@@ -777,7 +833,7 @@ export function BattlemapEditor({ fileId, doc }: BattlemapEditorProps) {
           isDragging = false;
           (container as Container & { isDragging: boolean }).isDragging = false;
           container.cursor = "grab";
-          if (appRef.current) {
+          if (appRef.current?.canvas) {
             appRef.current.canvas.style.cursor = "";
           }
 
@@ -808,9 +864,41 @@ export function BattlemapEditor({ fileId, doc }: BattlemapEditorProps) {
 
         if (targetLayer) {
           targetLayer.addChild(container);
+          console.log(
+            "[Token Render] Added new token to layer:",
+            token.id,
+            "layer:",
+            layerId
+          );
+        } else {
+          console.warn(
+            "[Token Render] Layer not found for token:",
+            token.id,
+            "layer:",
+            layerId
+          );
         }
 
         tokenContainers.set(token.id, container);
+      } else {
+        // Token container already exists, but ensure it's in the correct layer
+        const layerId = token.layer || "tokens";
+        const targetLayer = layerContainersRef.current.get(layerId);
+
+        // Check if container is already a child of the target layer
+        if (targetLayer && container.parent !== targetLayer) {
+          // Remove from old parent if exists
+          if (container.parent) {
+            container.parent.removeChild(container);
+          }
+          targetLayer.addChild(container);
+          console.log(
+            "[Token Render] Re-parented existing token to layer:",
+            token.id,
+            "layer:",
+            layerId
+          );
+        }
       }
 
       // Update interactivity and cursor based on current tool
@@ -874,9 +962,23 @@ export function BattlemapEditor({ fileId, doc }: BattlemapEditorProps) {
         container.y = token.y - size / 2;
       }
     });
+
+    // Cleanup function to destroy token containers when unmounting
+    return () => {
+      tokenContainers.forEach((container) => {
+        try {
+          container.removeAllListeners();
+          container.destroy({ children: true });
+        } catch (e) {
+          // Ignore errors during cleanup
+        }
+      });
+      tokenContainers.clear();
+    };
   }, [
     tokens,
     settings,
+    settings.layers, // Explicit dep to ensure re-render when layers init
     activeTool,
     doc,
     tokensArray,
@@ -1129,14 +1231,14 @@ export function BattlemapEditor({ fileId, doc }: BattlemapEditorProps) {
     app.canvas.addEventListener("pointerup", onPointerUp);
 
     return () => {
-      if (app && app.canvas) {
-        try {
+      try {
+        if (app?.canvas) {
           app.canvas.removeEventListener("pointerdown", onPointerDown);
           app.canvas.removeEventListener("pointermove", onPointerMove);
           app.canvas.removeEventListener("pointerup", onPointerUp);
-        } catch (e) {
-          // Ignore
         }
+      } catch (e) {
+        // Ignore - app may have been destroyed
       }
     };
   }, [
@@ -1259,6 +1361,18 @@ export function BattlemapEditor({ fileId, doc }: BattlemapEditorProps) {
         onContextMenu={(e) => e.preventDefault()}
       />
 
+      {/* Loading Overlay */}
+      {(!isReady || !synced) && (
+        <div className="absolute inset-0 z-[60] bg-slate-900 flex items-center justify-center">
+          <div className="flex flex-col items-center gap-4">
+            <div className="w-12 h-12 border-4 border-slate-700 border-t-sky-500 rounded-full animate-spin" />
+            <p className="text-slate-400 font-medium animate-pulse">
+              Loading Battlemap...
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Custom Scroll Indicators */}
       {viewportState.worldWidth > viewportState.screenWidth && (
         <div className="absolute right-1 top-2 bottom-2 w-1.5 pointer-events-none z-30">
@@ -1301,27 +1415,21 @@ export function BattlemapEditor({ fileId, doc }: BattlemapEditorProps) {
         </div>
       )}
 
-      <TokenLibrary
+      <TokenManagerSidebar
         doc={doc}
-        fileId={fileId}
-        isOpen={activeTool === "token"}
-        onClose={() => setActiveTool("select")}
+        isOpen={isTokensOpen}
+        onClose={() => setIsTokensOpen(false)}
+        layers={settings.layers || []}
+        activeLayerId={settings.activeLayerId || ""}
+        onUpdateLayers={(layers) => handleSettingsChange({ layers })}
+        onSetActiveLayer={(id) => handleSettingsChange({ activeLayerId: id })}
       />
 
       <BattlemapToolbar
         activeTool={activeTool}
         onToolChange={setActiveTool}
         onSettingsClick={() => setIsSettingsOpen(true)}
-        onLayersClick={() => setIsLayerPanelOpen((prev) => !prev)}
-      />
-
-      <BattlemapLayerPanel
-        isOpen={isLayerPanelOpen}
-        onClose={() => setIsLayerPanelOpen(false)}
-        layers={settings.layers || []}
-        activeLayerId={settings.activeLayerId || ""}
-        onUpdateLayers={(layers) => handleSettingsChange({ layers })}
-        onSetActiveLayer={(id) => handleSettingsChange({ activeLayerId: id })}
+        onTokensClick={() => setIsTokensOpen((prev) => !prev)}
       />
 
       {contextMenu && (

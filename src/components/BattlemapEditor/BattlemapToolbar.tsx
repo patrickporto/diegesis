@@ -6,7 +6,7 @@ interface BattlemapToolbarProps {
   activeTool: ToolType;
   onToolChange: (tool: ToolType) => void;
   onSettingsClick: () => void;
-  onLayersClick: () => void;
+  onTokensClick: () => void;
 }
 
 const tools: { id: ToolType; label: string; icon: React.ReactNode }[] = [
@@ -25,25 +25,6 @@ const tools: { id: ToolType; label: string; icon: React.ReactNode }[] = [
           strokeLinejoin="round"
           strokeWidth={2}
           d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122"
-        />
-      </svg>
-    ),
-  },
-  {
-    id: "token",
-    label: "Add Token",
-    icon: (
-      <svg
-        className="w-5 h-5"
-        fill="none"
-        viewBox="0 0 24 24"
-        stroke="currentColor"
-      >
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          strokeWidth={2}
-          d="M5.121 17.804A13.937 13.937 0 0112 16c2.5 0 4.847.655 6.879 1.804M15 10a3 3 0 11-6 0 3 3 0 016 0zm6 2a9 9 0 11-18 0 9 9 0 0118 0z"
         />
       </svg>
     ),
@@ -111,7 +92,7 @@ export function BattlemapToolbar({
   activeTool,
   onToolChange,
   onSettingsClick,
-  onLayersClick,
+  onTokensClick,
 }: BattlemapToolbarProps) {
   return (
     <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-50">
@@ -134,8 +115,8 @@ export function BattlemapToolbar({
         <div className="w-px h-6 bg-slate-200 mx-1" />
 
         <button
-          onClick={onLayersClick}
-          title="Layers"
+          onClick={onTokensClick}
+          title="Tokens"
           className="p-2.5 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-all"
         >
           <svg
@@ -148,7 +129,7 @@ export function BattlemapToolbar({
               strokeLinecap="round"
               strokeLinejoin="round"
               strokeWidth={2}
-              d="M4 6h16M4 12h16M4 18h16"
+              d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
             />
           </svg>
         </button>
