@@ -242,7 +242,22 @@ export function useBattlemapInteractions({
       if (isSpacePressedRef.current || e.button !== 0 || !viewport) return;
 
       const point = viewport.toLocal({ x: e.offsetX, y: e.offsetY });
-      const { x, y } = point;
+      let { x, y } = point;
+
+      // Snap logic (Magnetic Snap)
+      // Toggle snap if Ctrl is pressed (invert setting)
+      // Exception: Grid tool and Fill tool handle their own logic/don't need standard snap
+      const shouldSnap = e.ctrlKey ? !settings.snapToGrid : settings.snapToGrid;
+      if (
+        shouldSnap &&
+        activeTool === "fog" &&
+        fogTool !== "grid" &&
+        fogTool !== "fill"
+      ) {
+        const s = settings.gridCellSize;
+        x = Math.round(x / s) * s;
+        y = Math.round(y / s) * s;
+      }
 
       if (activeTool === "fog") {
         if (fogTool === "fill") {
@@ -340,7 +355,20 @@ export function useBattlemapInteractions({
       if (!viewport) return; // Removed !isDrawing check to allow hover preview
 
       const point = viewport.toLocal({ x: e.offsetX, y: e.offsetY });
-      const { x, y } = point;
+      let { x, y } = point;
+
+      // Snap logic (Magnetic Snap)
+      const shouldSnap = e.ctrlKey ? !settings.snapToGrid : settings.snapToGrid;
+      if (
+        shouldSnap &&
+        activeTool === "fog" &&
+        fogTool !== "grid" &&
+        fogTool !== "fill"
+      ) {
+        const s = settings.gridCellSize;
+        x = Math.round(x / s) * s;
+        y = Math.round(y / s) * s;
+      }
 
       // Update Preview (Always, for hover cursors etc)
       updatePreview(x, y);
@@ -370,6 +398,8 @@ export function useBattlemapInteractions({
       activeTool,
       fogTool,
       currentPath,
+      settings.gridCellSize,
+      settings.snapToGrid,
       appendToCurrentPath,
       setCurrentPath,
       updatePreview,
