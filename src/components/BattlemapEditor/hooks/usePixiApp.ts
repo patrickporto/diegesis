@@ -37,11 +37,12 @@ export function usePixiApp({ containerRef, fileId }: UsePixiAppProps) {
 
       const newApp = new Application();
       await newApp.init({
-        preference: "webgl",
+        // preference: "webgl",
         background: "#1a1a2e",
         width,
         height,
-        antialias: true,
+        // antialias: true,
+        hello: true,
       });
 
       if (!isMounted) {

@@ -5,6 +5,7 @@ import { uuidv7 } from "uuidv7";
 import * as Y from "yjs";
 
 import { useBattlemapStore } from "../../../stores/useBattlemapStore";
+import { GridRenderer } from "../GridRenderer"; // Import GridRenderer
 import {
   BattlemapSettings,
   DrawingPath,
@@ -145,18 +146,28 @@ export function useBattlemapInteractions({
             });
           }
         } else if (fogTool === "grid") {
-          // GRID: Highlight cell
-          const size = settings.gridCellSize;
-          const cellX = Math.floor(x / size) * size;
-          const cellY = Math.floor(y / size) * size;
+          // GRID: Highlight cell using generic getCellShape
+          const shape = GridRenderer.getCellShape(
+            x,
+            y,
+            settings.gridType,
+            settings.gridCellSize
+          );
 
-          g.rect(cellX, cellY, size, size);
-          g.fill({ color: fillColor, alpha: fillAlpha });
-          g.stroke({
-            color: strokeColor,
-            width: strokeWidth,
-            alpha: strokeAlpha,
-          });
+          if (shape) {
+            if (shape.type === "rect") {
+              const [rx, ry, rw, rh] = shape.data;
+              g.rect(rx, ry, rw, rh);
+            } else if (shape.type === "poly") {
+              g.poly(shape.data);
+            }
+            g.fill({ color: fillColor, alpha: fillAlpha });
+            g.stroke({
+              color: strokeColor,
+              width: strokeWidth,
+              alpha: strokeAlpha,
+            });
+          }
         } else if (isDrawing) {
           // RECT / ELLIPSE / POLYGON (Drawing State)
           if (fogTool === "rect") {
@@ -232,6 +243,7 @@ export function useBattlemapInteractions({
       isDrawing,
       currentPath,
       settings.gridCellSize,
+      settings.gridType,
       previewGraphicsRef,
     ]
   );
@@ -273,25 +285,25 @@ export function useBattlemapInteractions({
           });
           return;
         } else if (fogTool === "grid") {
-          const cellX =
-            Math.floor(x / settings.gridCellSize) * settings.gridCellSize;
-          const cellY =
-            Math.floor(y / settings.gridCellSize) * settings.gridCellSize;
-          doc.transact(() => {
-            fogArray.push([
-              {
-                id: uuidv7(),
-                type: "rect",
-                data: [
-                  cellX,
-                  cellY,
-                  settings.gridCellSize,
-                  settings.gridCellSize,
-                ],
-                operation: fogMode === "hide" ? "add" : "sub",
-              },
-            ]);
-          });
+          const shape = GridRenderer.getCellShape(
+            x,
+            y,
+            settings.gridType,
+            settings.gridCellSize
+          );
+
+          if (shape) {
+            doc.transact(() => {
+              fogArray.push([
+                {
+                  id: uuidv7(),
+                  type: shape.type, // 'rect' or 'poly'
+                  data: shape.data,
+                  operation: fogMode === "hide" ? "add" : "sub",
+                },
+              ]);
+            });
+          }
         } else if (fogTool === "polygon") {
           if (!isDrawing) {
             setIsDrawing(true);
@@ -338,7 +350,9 @@ export function useBattlemapInteractions({
       fogTool,
       fogMode,
       isDrawing,
-      settings,
+      settings.gridType,
+      settings.gridCellSize,
+      settings.snapToGrid,
       viewport,
       doc,
       fogArray,

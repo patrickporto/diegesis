@@ -37,7 +37,6 @@ export class GridRenderer {
       color,
       width: options.width,
       alpha: options.alpha,
-      pixelLine: true,
     });
   }
 
@@ -91,7 +90,6 @@ export class GridRenderer {
       color,
       width: options.width,
       alpha: options.alpha,
-      pixelLine: true,
     });
   }
 
@@ -164,7 +162,6 @@ export class GridRenderer {
       color,
       width: options.width,
       alpha: options.alpha,
-      pixelLine: true,
     });
   }
 
@@ -242,7 +239,7 @@ export class GridRenderer {
         const vertDist = hexHeight * 0.75;
 
         const row = Math.round(y / vertDist);
-        const offsetX = row % 2 === 1 ? hexWidth / 2 : 0;
+        const offsetX = Math.abs(row) % 2 === 1 ? hexWidth / 2 : 0;
         const col = Math.round((x - offsetX) / hexWidth);
 
         return {
@@ -257,7 +254,7 @@ export class GridRenderer {
         const horizDist = hexWidth * 0.75;
 
         const col = Math.round(x / horizDist);
-        const offsetY = col % 2 === 1 ? hexHeight / 2 : 0;
+        const offsetY = Math.abs(col) % 2 === 1 ? hexHeight / 2 : 0;
         const row = Math.round((y - offsetY) / hexHeight);
 
         return {
@@ -270,23 +267,92 @@ export class GridRenderer {
         const isoWidth = cellSize;
         const isoHeight = cellSize / 2;
 
-        // Convert to isometric grid coordinates
-        const isoX = (x / isoWidth + y / isoHeight) / 2;
-        const isoY = (y / isoHeight - x / isoWidth) / 2;
+        const isoX = x / isoWidth + y / isoHeight;
+        const isoY = y / isoHeight - x / isoWidth;
 
-        // Snap to nearest cell
         const snappedIsoX = Math.round(isoX);
         const snappedIsoY = Math.round(isoY);
 
-        // Convert back to screen coordinates
         return {
-          x: (snappedIsoX - snappedIsoY) * isoWidth,
-          y: (snappedIsoX + snappedIsoY) * isoHeight,
+          x: ((snappedIsoX - snappedIsoY) * isoWidth) / 2,
+          y: ((snappedIsoX + snappedIsoY) * isoHeight) / 2,
         };
       }
 
       default:
         return { x, y };
     }
+  }
+
+  /**
+   * Get the shape of the grid cell at the given position
+   */
+  static getCellShape(
+    x: number,
+    y: number,
+    gridType: GridType,
+    cellSize: number
+  ): { type: "rect" | "poly"; data: number[] } | null {
+    if (gridType === "none") return null;
+
+    if (gridType === "square") {
+      const cellX = Math.floor(x / cellSize) * cellSize;
+      const cellY = Math.floor(y / cellSize) * cellSize;
+      return {
+        type: "rect",
+        data: [cellX, cellY, cellSize, cellSize],
+      };
+    }
+
+    if (gridType.startsWith("hex")) {
+      const center = this.snapToGrid(x, y, gridType, cellSize);
+      const points: number[] = [];
+      const radius = cellSize / 2;
+      const pointyTop = gridType === "hex-vertical";
+      const angleOffset = pointyTop ? Math.PI / 6 : 0;
+
+      for (let i = 0; i < 6; i++) {
+        const angle = (Math.PI / 3) * i + angleOffset;
+        points.push(center.x + radius * Math.cos(angle));
+        points.push(center.y + radius * Math.sin(angle));
+      }
+
+      return {
+        type: "poly",
+        data: points,
+      };
+    }
+
+    if (gridType === "isometric") {
+      const isoWidth = cellSize;
+      const isoHeight = cellSize / 2;
+
+      const isoX = x / isoWidth + y / isoHeight;
+      const isoY = y / isoHeight - x / isoWidth;
+      const tileX = Math.floor(isoX);
+      const tileY = Math.floor(isoY);
+
+      const cenIsoX = tileX + 0.5;
+      const cenIsoY = tileY + 0.5;
+
+      const cx = ((cenIsoX - cenIsoY) * isoWidth) / 2;
+      const cy = ((cenIsoX + cenIsoY) * isoHeight) / 2;
+
+      return {
+        type: "poly",
+        data: [
+          cx,
+          cy - isoHeight / 2, // Top
+          cx + isoWidth / 2,
+          cy, // Right
+          cx,
+          cy + isoHeight / 2, // Bottom
+          cx - isoWidth / 2,
+          cy, // Left
+        ],
+      };
+    }
+
+    return null;
   }
 }

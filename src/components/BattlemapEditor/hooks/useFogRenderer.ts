@@ -35,7 +35,7 @@ export function useFogRenderer({
   const updateFogOpacity = useCallback(
     (opacity: number) => {
       const fogTexture = fogTextureRef.current;
-      if (!fogTexture || !app?.renderer) return;
+      if (!app || !app.renderer || !fogTexture) return;
 
       const fogGraphics = new Graphics();
       fogGraphics.rect(0, 0, FOG_SIZE, FOG_SIZE);
@@ -53,7 +53,7 @@ export function useFogRenderer({
   // Initialize fog layer with mask-based approach
   useEffect(() => {
     const fogLayer = layerContainersRef.current.get("fog");
-    if (!fogLayer || !isReady || !app?.renderer) return;
+    if (!app || !app.renderer || !fogLayer || !isReady) return;
 
     // Clean up existing fog elements
     fogLayer.removeChildren();
@@ -124,7 +124,7 @@ export function useFogRenderer({
   // Update the mask texture when fog shapes change
   useEffect(() => {
     const maskTexture = maskTextureRef.current;
-    if (!maskTexture || !app?.renderer) return;
+    if (!app || !app.renderer || !maskTexture) return;
 
     // Create a container to draw all fog shapes into the mask
     const maskContainer = new Container();
