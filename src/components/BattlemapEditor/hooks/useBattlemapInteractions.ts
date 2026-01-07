@@ -85,14 +85,146 @@ export function useBattlemapInteractions({
   useEffect(() => {
     if (!viewport) return;
     if (activeTool === "select" || isSpacePressedRef.current) {
-      // If space is pressed, we want drag regardless of tool?
-      // Actually the keydown handler resumes it.
-      // But if we switch tool, this effect runs.
       if (activeTool === "select") viewport.plugins.resume("drag");
     } else {
       if (!isSpacePressedRef.current) viewport.plugins.pause("drag");
     }
   }, [activeTool, viewport]);
+
+  // Helper to render preview
+  const updatePreview = useCallback(
+    (x: number, y: number) => {
+      const g = previewGraphicsRef.current;
+      if (!g) return;
+
+      g.clear();
+
+      if (activeTool === "fog") {
+        // Preview Style Configuration
+        const isHide = fogMode === "hide";
+        const fillColor = isHide ? 0x000000 : 0xffffff;
+        const fillAlpha = 0.5;
+        const strokeColor = isHide ? 0xffffff : 0xff0000;
+        const strokeAlpha = 0.8;
+        const strokeWidth = 2;
+
+        if (fogTool === "brush") {
+          // BRUSH: Show circle cursor (hover) or brushed path (drawing)
+          g.circle(x, y, brushSize / 2);
+          g.fill({ color: fillColor, alpha: 0.3 }); // Lighter fill for cursor
+          g.stroke({ color: strokeColor, width: 1, alpha: strokeAlpha });
+
+          // If drawing, show the full path so far?
+          // Actually, brush path is complex to preview fully efficiently if long.
+          // But we can show the current stroke if we want.
+          // For now, let's just show the cursor.
+          // If we want to show the stroke trail:
+          if (isDrawing && currentPath.length >= 2) {
+            g.moveTo(currentPath[0], currentPath[1]);
+            for (let i = 2; i < currentPath.length; i += 2) {
+              g.lineTo(currentPath[i], currentPath[i + 1]);
+            }
+            // Draw line to current pos
+            g.lineTo(x, y);
+            g.stroke({
+              width: brushSize,
+              color: fillColor,
+              alpha: 0.5,
+              cap: "round",
+              join: "round",
+            });
+          }
+        } else if (fogTool === "grid") {
+          // GRID: Highlight cell
+          const size = settings.gridCellSize;
+          const cellX = Math.floor(x / size) * size;
+          const cellY = Math.floor(y / size) * size;
+
+          g.rect(cellX, cellY, size, size);
+          g.fill({ color: fillColor, alpha: fillAlpha });
+          g.stroke({
+            color: strokeColor,
+            width: strokeWidth,
+            alpha: strokeAlpha,
+          });
+        } else if (isDrawing) {
+          // RECT / ELLIPSE / POLYGON (Drawing State)
+          if (fogTool === "rect") {
+            const startX = currentPath[0];
+            const startY = currentPath[1];
+            // Normalize preview
+            const rectX = Math.min(startX, x);
+            const rectY = Math.min(startY, y);
+            const rectW = Math.abs(x - startX);
+            const rectH = Math.abs(y - startY);
+
+            g.rect(rectX, rectY, rectW, rectH);
+            g.fill({ color: fillColor, alpha: fillAlpha });
+            g.stroke({
+              color: strokeColor,
+              width: strokeWidth,
+              alpha: strokeAlpha,
+            });
+          } else if (fogTool === "ellipse") {
+            const startX = currentPath[0];
+            const startY = currentPath[1];
+            const width = x - startX;
+            const height = y - startY;
+
+            // Ellipse is usually defined by center and radius in Pixi 8?
+            // Or center X, center Y, radius X, radius Y
+            // x + width/2 is the center.
+            const centerX = startX + width / 2;
+            const centerY = startY + height / 2;
+            const radiusX = Math.abs(width / 2);
+            const radiusY = Math.abs(height / 2);
+
+            g.ellipse(centerX, centerY, radiusX, radiusY);
+            g.fill({ color: fillColor, alpha: fillAlpha });
+            g.stroke({
+              color: strokeColor,
+              width: strokeWidth,
+              alpha: strokeAlpha,
+            });
+          } else if (fogTool === "polygon") {
+            if (currentPath.length >= 2) {
+              g.moveTo(currentPath[0], currentPath[1]);
+              for (let i = 2; i < currentPath.length; i += 2) {
+                g.lineTo(currentPath[i], currentPath[i + 1]);
+              }
+              g.lineTo(x, y); // Dynamic line to cursor
+              g.stroke({
+                color: strokeColor,
+                width: strokeWidth,
+                alpha: strokeAlpha,
+              });
+              g.fill({ color: fillColor, alpha: 0.2 }); // Light fill to show potential shape
+            }
+          }
+        }
+      } else if (activeTool === "draw" && isDrawing) {
+        // DRAW TOOL
+        if (currentPath.length >= 2) {
+          g.moveTo(currentPath[0], currentPath[1]);
+          for (let i = 2; i < currentPath.length; i += 2) {
+            g.lineTo(currentPath[i], currentPath[i + 1]);
+          }
+          g.lineTo(x, y);
+          g.stroke({ color: 0xff0000, width: 2, alpha: 1 });
+        }
+      }
+    },
+    [
+      activeTool,
+      fogTool,
+      fogMode,
+      brushSize,
+      isDrawing,
+      currentPath,
+      settings.gridCellSize,
+      previewGraphicsRef,
+    ]
+  );
 
   // Pointer Handlers
   const onPointerDown = useCallback(
@@ -130,8 +262,6 @@ export function useBattlemapInteractions({
           } else {
             appendToCurrentPath(x, y);
           }
-          // Preview update handled in Effect/Store subscription or render loop?
-          // Actually better to handle preview in the interactions or a separate effect watching currentPath
         } else {
           setIsDrawing(true);
           if (fogTool === "brush") {
@@ -162,6 +292,9 @@ export function useBattlemapInteractions({
           });
         }
       }
+
+      // Update preview immediately on down
+      updatePreview(x, y);
     },
     [
       activeTool,
@@ -176,20 +309,27 @@ export function useBattlemapInteractions({
       setIsDrawing,
       setCurrentPath,
       appendToCurrentPath,
+      updatePreview,
     ]
   );
 
   const onPointerMove = useCallback(
     (e: PointerEvent) => {
-      if (!isDrawing || !viewport) return;
+      if (!viewport) return; // Removed !isDrawing check to allow hover preview
 
       const point = viewport.toLocal({ x: e.offsetX, y: e.offsetY });
       const { x, y } = point;
+
+      // Update Preview (Always, for hover cursors etc)
+      updatePreview(x, y);
+
+      if (!isDrawing) return;
 
       if (activeTool === "fog") {
         if (fogTool === "brush") {
           const lastX = currentPath[currentPath.length - 2];
           const lastY = currentPath[currentPath.length - 1];
+          // Optimization: don't add too many points
           if (currentPath.length < 2 || Math.hypot(x - lastX, y - lastY) > 5) {
             appendToCurrentPath(x, y);
           }
@@ -210,92 +350,110 @@ export function useBattlemapInteractions({
       currentPath,
       appendToCurrentPath,
       setCurrentPath,
+      updatePreview,
     ]
   );
 
-  const onPointerUp = useCallback(() => {
-    if (!isDrawing) return;
+  const onPointerUp = useCallback(
+    (e: PointerEvent) => {
+      if (!isDrawing) return;
 
-    if (activeTool === "fog") {
-      if (fogTool === "rect" || fogTool === "ellipse") {
-        const [startX, startY, endX, endY] = currentPath;
-        const width = endX - startX;
-        const height = endY - startY;
-        if (Math.abs(width) > 1 && Math.abs(height) > 1) {
+      if (activeTool === "fog") {
+        if (fogTool === "rect" || fogTool === "ellipse") {
+          const [startX, startY, endX, endY] = currentPath;
+          // Normalize coordinates
+          const x = Math.min(startX, endX);
+          const y = Math.min(startY, endY);
+          const width = Math.abs(endX - startX);
+          const height = Math.abs(endY - startY);
+
+          if (width > 1 && height > 1) {
+            doc.transact(() => {
+              fogArray.push([
+                {
+                  id: uuidv7(),
+                  type: fogTool,
+                  data: [x, y, width, height],
+                  operation: fogMode === "hide" ? "add" : "sub",
+                },
+              ]);
+            });
+          }
+        } else if (fogTool === "brush" && currentPath.length >= 4) {
           doc.transact(() => {
             fogArray.push([
               {
                 id: uuidv7(),
-                type: fogTool,
-                data: [startX, startY, width, height],
+                type: "brush",
+                data: [...currentPath],
                 operation: fogMode === "hide" ? "add" : "sub",
+                width: brushSize,
               },
             ]);
           });
+        } else if (fogTool === "polygon") {
+          // If Shift is pressed, keep adding points (return early)
+          if (e.shiftKey) return;
+
+          // If finishing (Shift released), push the shape if valid
+          if (currentPath.length >= 6) {
+            doc.transact(() => {
+              fogArray.push([
+                {
+                  id: uuidv7(),
+                  type: "poly",
+                  data: [...currentPath],
+                  operation: fogMode === "hide" ? "add" : "sub",
+                },
+              ]);
+            });
+            // Force finish
+            setIsDrawing(false);
+            clearCurrentPath();
+            if (previewGraphicsRef.current) previewGraphicsRef.current.clear();
+          }
         }
-      } else if (fogTool === "brush" && currentPath.length >= 4) {
+      } else if (activeTool === "draw" && currentPath.length >= 4) {
         doc.transact(() => {
-          fogArray.push([
+          drawingsArray.push([
             {
               id: uuidv7(),
-              type: "brush",
-              data: [...currentPath],
-              operation: fogMode === "hide" ? "add" : "sub",
-              width: brushSize,
-            },
-          ]);
-        });
-      } else if (fogTool === "polygon" && currentPath.length >= 6) {
-        doc.transact(() => {
-          fogArray.push([
-            {
-              id: uuidv7(),
-              type: "poly",
-              data: [...currentPath],
-              operation: fogMode === "hide" ? "add" : "sub",
+              points: [...currentPath],
+              color: "#ff0000",
+              width: 2,
+              layer: settings.activeLayerId || "map",
             },
           ]);
         });
       }
-      // NOTE: Polygon doesn't finish on pointer up necessarily?
-      // Original code didn't finish polygon on pointer up immediately unless logic was specific.
-      // Actually original code: "return; // Don't set isDrawing false, polygon continues until closed"
-      // But here I'm setting isDrawing false at end.
-      // If polygon, we probably shouldn't set isDrawing false here.
-    } else if (activeTool === "draw" && currentPath.length >= 4) {
-      doc.transact(() => {
-        drawingsArray.push([
-          {
-            id: uuidv7(),
-            points: [...currentPath],
-            color: "#ff0000",
-            width: 2,
-            layer: settings.activeLayerId || "map",
-          },
-        ]);
-      });
-    }
 
-    if (activeTool !== "fog" || fogTool !== "polygon") {
-      setIsDrawing(false);
-      clearCurrentPath();
-      if (previewGraphicsRef.current) previewGraphicsRef.current.clear();
-    }
-  }, [
-    isDrawing,
-    activeTool,
-    fogTool,
-    fogMode,
-    brushSize,
-    currentPath,
-    doc,
-    fogArray,
-    drawingsArray,
-    setIsDrawing,
-    clearCurrentPath,
-    previewGraphicsRef,
-    settings.activeLayerId,
-  ]);
+      // Default clearance for non-polygon tools (or failed polygon)
+      if (activeTool !== "fog" || fogTool !== "polygon") {
+        setIsDrawing(false);
+        clearCurrentPath();
+        if (previewGraphicsRef.current) previewGraphicsRef.current.clear();
+      }
+    },
+    [
+      isDrawing,
+      activeTool,
+      fogTool,
+      fogMode,
+      brushSize,
+      currentPath,
+      doc,
+      fogArray,
+      drawingsArray,
+      setIsDrawing,
+      clearCurrentPath,
+      previewGraphicsRef,
+      settings.activeLayerId,
+    ]
+  );
+
+  const onPointerLeave = useCallback(() => {
+    if (previewGraphicsRef.current) previewGraphicsRef.current.clear();
+  }, [previewGraphicsRef]);
 
   // Attach to Canvas
   useEffect(() => {
@@ -304,12 +462,14 @@ export function useBattlemapInteractions({
 
     canvas.addEventListener("pointerdown", onPointerDown);
     canvas.addEventListener("pointermove", onPointerMove);
-    window.addEventListener("pointerup", onPointerUp); // Window for drag release outside
+    canvas.addEventListener("pointerleave", onPointerLeave);
+    window.addEventListener("pointerup", onPointerUp);
 
     return () => {
       canvas.removeEventListener("pointerdown", onPointerDown);
       canvas.removeEventListener("pointermove", onPointerMove);
+      canvas.removeEventListener("pointerleave", onPointerLeave);
       window.removeEventListener("pointerup", onPointerUp);
     };
-  }, [app, onPointerDown, onPointerMove, onPointerUp]);
+  }, [app, onPointerDown, onPointerMove, onPointerUp, onPointerLeave]);
 }
