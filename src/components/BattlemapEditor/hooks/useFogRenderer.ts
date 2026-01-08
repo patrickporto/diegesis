@@ -7,6 +7,7 @@ import {
 } from "pixi.js";
 import { useCallback, useEffect, useRef } from "react";
 
+import { useBattlemapStore } from "../../../stores/useBattlemapStore";
 import { BattlemapSettings, FogShape } from "../types";
 
 interface UseFogRendererProps {
@@ -167,6 +168,15 @@ export function useFogRenderer({
     // Clean up the temporary container
     maskContainer.destroy({ children: true });
   }, [fogShapes, app]);
+
+  // Handle interactivity of fog layer - only active when using fog tool
+  const activeTool = useBattlemapStore((s) => s.activeTool);
+  useEffect(() => {
+    const fogLayer = layerContainersRef.current.get("fog");
+    if (fogLayer) {
+      fogLayer.eventMode = activeTool === "fog" ? "static" : "none";
+    }
+  }, [activeTool, layerContainersRef]);
 }
 
 function drawFogShape(g: Graphics, shape: FogShape, color: number) {

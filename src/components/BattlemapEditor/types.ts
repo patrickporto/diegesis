@@ -28,6 +28,8 @@ export interface BattlemapSettings {
   snapToGrid: boolean;
   fogOpacity: number; // 0-1, opacity of fog of war overlay
   backgroundImage?: string; // base64 or url
+  mapWidth?: number; // Map width in pixels
+  mapHeight?: number; // Map height in pixels
   layers?: Layer[]; // Array of dynamic layers. If undefined (legacy), we migrate.
   activeLayerId?: string; // ID of the currently active layer
   viewportX?: number; // Viewport position
@@ -69,7 +71,6 @@ export type ToolType =
   | "token"
   | "text"
   | "draw"
-  | "eraser"
   | "fog"
   | "wall";
 

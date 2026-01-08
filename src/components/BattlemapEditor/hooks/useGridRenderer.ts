@@ -25,10 +25,15 @@ export function useGridRenderer({
 
     if (gridLayer instanceof Graphics) {
       gridLayer.clear();
+
+      // Use map dimensions from settings, fallback to default if not set
+      const gridWidth = settings.mapWidth || 3000;
+      const gridHeight = settings.mapHeight || 3000;
+
       GridRenderer.render(
         gridLayer,
-        3000,
-        3000, // Width/Height should ideally come from viewport / expanded world size
+        gridWidth,
+        gridHeight,
         settings.gridType,
         settings.gridCellSize,
         {
@@ -41,5 +46,16 @@ export function useGridRenderer({
       // Original code: "viewport.addChild(grid)" and re-drew it.
       // Here we assume static big grid for simplicity or need to listen to resize.
     }
-  }, [settings, isReady, app, layerContainersRef]); // Re-draw when settings change
+  }, [
+    settings.gridType,
+    settings.gridCellSize,
+    settings.gridColor,
+    settings.gridOpacity,
+    settings.gridLineWidth,
+    settings.mapWidth,
+    settings.mapHeight,
+    isReady,
+    app,
+    layerContainersRef,
+  ]); // Re-draw when settings change
 }

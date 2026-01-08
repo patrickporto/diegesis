@@ -9,6 +9,7 @@ interface UseBackgroundRendererProps {
   app: Application | null;
   getFileBlob: (fileId: string) => Promise<Blob>;
   isReady: boolean;
+  updateSettings: (updates: Partial<BattlemapSettings>) => void;
 }
 
 export function useBackgroundRenderer({
@@ -17,6 +18,7 @@ export function useBackgroundRenderer({
   app,
   getFileBlob,
   isReady,
+  updateSettings,
 }: UseBackgroundRendererProps) {
   const currentBgIdRef = useRef<string | null>(null);
 
@@ -54,11 +56,33 @@ export function useBackgroundRenderer({
         sprite.label = "background-image";
         bgLayer.addChild(sprite);
         currentBgIdRef.current = bgSource;
+
+        // Update map dimensions based on background image
+        const textureWidth = texture.width;
+        const textureHeight = texture.height;
+        if (
+          settings.mapWidth !== textureWidth ||
+          settings.mapHeight !== textureHeight
+        ) {
+          updateSettings({
+            mapWidth: textureWidth,
+            mapHeight: textureHeight,
+          });
+        }
       } catch (error) {
         console.error("Failed to load background:", error);
       }
     };
 
     loadBackground();
-  }, [settings.backgroundImage, isReady, app, getFileBlob, layerContainersRef]);
+  }, [
+    settings.backgroundImage,
+    settings.mapWidth,
+    settings.mapHeight,
+    isReady,
+    app,
+    getFileBlob,
+    layerContainersRef,
+    updateSettings,
+  ]);
 }

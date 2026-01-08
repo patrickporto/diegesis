@@ -37,13 +37,15 @@ export function useBattlemapInteractions({
   previewGraphicsRef,
 }: UseBattlemapInteractionsProps) {
   const isSpacePressedRef = useRef(false);
+  const isMiddlePressedRef = useRef(false);
+  const middleDragStartRef = useRef<{ x: number; y: number } | null>(null);
 
   // Store access
   const activeTool = useBattlemapStore((s) => s.activeTool);
-  const fogTool = useBattlemapStore((s) => s.fogTool);
-  const fogMode = useBattlemapStore((s) => s.fogMode);
-  const brushSize = useBattlemapStore((s) => s.brushSize);
-  const isDrawing = useBattlemapStore((s) => s.isDrawing);
+  const fogTool = useBattlemapStore((s) => s.fogTool); // Kept as it's used later
+  const fogMode = useBattlemapStore((s) => s.fogMode); // Kept as it's used later
+  const brushSize = useBattlemapStore((s) => s.brushSize); // Kept as it's used later
+  const isDrawing = useBattlemapStore((s) => s.isDrawing); // Kept as it's used later
   const setIsDrawing = useBattlemapStore((s) => s.setIsDrawing);
   const setCurrentPath = useBattlemapStore((s) => s.setCurrentPath);
   const appendToCurrentPath = useBattlemapStore((s) => s.appendToCurrentPath);
@@ -62,6 +64,11 @@ export function useBattlemapInteractions({
           return;
 
         isSpacePressedRef.current = true;
+
+        // Enable temporary pan mode (updates toolbar)
+        const { enableTemporaryPan } = useBattlemapStore.getState();
+        enableTemporaryPan();
+
         if (viewport) {
           viewport.plugins.resume("drag");
         }
@@ -71,8 +78,10 @@ export function useBattlemapInteractions({
     const onKeyUp = (e: KeyboardEvent) => {
       if (e.code === "Space") {
         isSpacePressedRef.current = false;
-        // Re-evaluate drag pause based on tool??
-        // For now, let the tool effect handle it
+
+        // Disable temporary pan mode (restore previous tool in toolbar)
+        const { disableTemporaryPan } = useBattlemapStore.getState();
+        disableTemporaryPan();
       }
     };
 
@@ -91,10 +100,13 @@ export function useBattlemapInteractions({
     // Resume drag if:
     // 1. Tool is PAN
     // 2. Spacebar is held (temporary pan)
-    // 3. Tool is Select but dragging viewport (handled by Spacebar check mostly, or middle click if configured)
+    // 3. Middle mouse button is held (temporary pan)
 
-    // Explicitly:
-    if (activeTool === "pan" || isSpacePressedRef.current) {
+    if (
+      activeTool === "pan" ||
+      isSpacePressedRef.current ||
+      isMiddlePressedRef.current
+    ) {
       viewport.plugins.resume("drag");
     } else {
       viewport.plugins.pause("drag");
@@ -255,10 +267,24 @@ export function useBattlemapInteractions({
     ]
   );
 
-  // Pointer Handlers
   const onPointerDown = useCallback(
     (e: PointerEvent) => {
-      if (isSpacePressedRef.current || e.button !== 0 || !viewport) return;
+      if (!viewport) return;
+
+      console.log("Canvas PointerDown:", {
+        button: e.button,
+        tool: activeTool,
+        clientX: e.clientX,
+        clientY: e.clientY,
+        offsetX: e.offsetX,
+        offsetY: e.offsetY,
+      });
+
+      // Allow middle button to pass through for drag (handled by mousedown listener)
+      if (e.button === 1) return;
+
+      // Tools only work with left button
+      if (isSpacePressedRef.current || e.button !== 0) return;
 
       const point = viewport.toLocal({ x: e.offsetX, y: e.offsetY });
       let { x, y } = point;
@@ -371,62 +397,6 @@ export function useBattlemapInteractions({
     ]
   );
 
-  const onPointerMove = useCallback(
-    (e: PointerEvent) => {
-      if (!viewport) return; // Removed !isDrawing check to allow hover preview
-
-      const point = viewport.toLocal({ x: e.offsetX, y: e.offsetY });
-      let { x, y } = point;
-
-      // Snap logic (Magnetic Snap)
-      const shouldSnap = e.ctrlKey ? !settings.snapToGrid : settings.snapToGrid;
-      if (
-        shouldSnap &&
-        activeTool === "fog" &&
-        fogTool !== "grid" &&
-        fogTool !== "fill"
-      ) {
-        const s = settings.gridCellSize;
-        x = Math.round(x / s) * s;
-        y = Math.round(y / s) * s;
-      }
-
-      // Update Preview (Always, for hover cursors etc)
-      updatePreview(x, y);
-
-      if (!isDrawing) return;
-
-      if (activeTool === "fog") {
-        if (fogTool === "brush") {
-          const lastX = currentPath[currentPath.length - 2];
-          const lastY = currentPath[currentPath.length - 1];
-          // Optimization: don't add too many points
-          if (currentPath.length < 2 || Math.hypot(x - lastX, y - lastY) > 5) {
-            appendToCurrentPath(x, y);
-          }
-        } else if (fogTool === "rect" || fogTool === "ellipse") {
-          const startX = currentPath[0];
-          const startY = currentPath[1];
-          setCurrentPath([startX, startY, x, y]);
-        }
-      } else if (activeTool === "draw") {
-        appendToCurrentPath(x, y);
-      }
-    },
-    [
-      isDrawing,
-      viewport,
-      activeTool,
-      fogTool,
-      currentPath,
-      settings.gridCellSize,
-      settings.snapToGrid,
-      appendToCurrentPath,
-      setCurrentPath,
-      updatePreview,
-    ]
-  );
-
   const onPointerUp = useCallback(
     (e: PointerEvent) => {
       if (!isDrawing) return;
@@ -532,21 +502,154 @@ export function useBattlemapInteractions({
     if (previewGraphicsRef.current) previewGraphicsRef.current.clear();
   }, [previewGraphicsRef]);
 
+  // Middle mouse button handler
+  const onMouseDown = useCallback(
+    (e: MouseEvent) => {
+      if (e.button === 1) {
+        // Middle button
+        e.preventDefault();
+        e.stopPropagation();
+
+        // Enable temporary pan mode (updates toolbar)
+        const { enableTemporaryPan } = useBattlemapStore.getState();
+        enableTemporaryPan();
+
+        isMiddlePressedRef.current = true;
+        middleDragStartRef.current = { x: e.clientX, y: e.clientY };
+
+        // Change cursor to indicate pan mode
+        if (app?.canvas) {
+          (app.canvas as HTMLCanvasElement).style.cursor = "grab";
+        }
+      }
+    },
+    [app]
+  );
+
+  const onMouseUp = useCallback(
+    (e: MouseEvent) => {
+      if (e.button === 1) {
+        // Middle button
+
+        // Disable temporary pan mode (restore previous tool in toolbar)
+        const { disableTemporaryPan } = useBattlemapStore.getState();
+        disableTemporaryPan();
+
+        isMiddlePressedRef.current = false;
+        middleDragStartRef.current = null;
+
+        // Restore cursor
+        if (app?.canvas) {
+          (app.canvas as HTMLCanvasElement).style.cursor = "default";
+        }
+      }
+    },
+    [app]
+  );
+
+  const onPointerMove = useCallback(
+    (e: PointerEvent) => {
+      if (!viewport) return;
+
+      // Handle middle button drag manually
+      if (isMiddlePressedRef.current && middleDragStartRef.current) {
+        const dx = e.clientX - middleDragStartRef.current.x;
+        const dy = e.clientY - middleDragStartRef.current.y;
+
+        // Update viewport position
+        // eslint-disable-next-line react-compiler/react-compiler
+        viewport.x += dx;
+        // eslint-disable-next-line react-compiler/react-compiler
+        viewport.y += dy;
+
+        // Update last position
+        middleDragStartRef.current = { x: e.clientX, y: e.clientY };
+        return; // Don't process other interactions during middle drag
+      }
+
+      const point = viewport.toLocal({ x: e.offsetX, y: e.offsetY });
+      let { x, y } = point;
+
+      // Snap logic (Magnetic Snap)
+      const shouldSnap = e.ctrlKey ? !settings.snapToGrid : settings.snapToGrid;
+      if (
+        shouldSnap &&
+        activeTool === "fog" &&
+        fogTool !== "grid" &&
+        fogTool !== "fill"
+      ) {
+        const s = settings.gridCellSize;
+        x = Math.round(x / s) * s;
+        y = Math.round(y / s) * s;
+      }
+
+      // Update Preview (Always, for hover cursors etc)
+      updatePreview(x, y);
+
+      if (!isDrawing) return;
+
+      if (activeTool === "fog") {
+        if (fogTool === "brush") {
+          const lastX = currentPath[currentPath.length - 2];
+          const lastY = currentPath[currentPath.length - 1];
+          // Optimization: don't add too many points
+          if (currentPath.length < 2 || Math.hypot(x - lastX, y - lastY) > 5) {
+            appendToCurrentPath(x, y);
+          }
+        } else if (fogTool === "rect" || fogTool === "ellipse") {
+          const startX = currentPath[0];
+          const startY = currentPath[1];
+          setCurrentPath([startX, startY, x, y]);
+        }
+      } else if (activeTool === "draw") {
+        appendToCurrentPath(x, y);
+      }
+    },
+    [
+      viewport,
+      settings,
+      activeTool,
+      fogTool,
+      updatePreview,
+      isDrawing,
+      currentPath,
+      appendToCurrentPath,
+      setCurrentPath,
+      isMiddlePressedRef,
+      middleDragStartRef,
+    ]
+  );
+
   // Attach to Canvas
   useEffect(() => {
-    if (!app?.canvas) return;
+    if (!app?.canvas || !viewport) return;
     const canvas = app.canvas as HTMLCanvasElement;
+    console.log("Attaching Battlemap Interactions to Canvas");
 
     canvas.addEventListener("pointerdown", onPointerDown);
     canvas.addEventListener("pointermove", onPointerMove);
     canvas.addEventListener("pointerleave", onPointerLeave);
+    canvas.addEventListener("mousedown", onMouseDown);
+    window.addEventListener("mouseup", onMouseUp); // Global to catch release anywhere
     window.addEventListener("pointerup", onPointerUp);
 
     return () => {
       canvas.removeEventListener("pointerdown", onPointerDown);
       canvas.removeEventListener("pointermove", onPointerMove);
       canvas.removeEventListener("pointerleave", onPointerLeave);
+      canvas.removeEventListener("mousedown", onMouseDown);
+      window.removeEventListener("mouseup", onMouseUp);
       window.removeEventListener("pointerup", onPointerUp);
     };
-  }, [app, onPointerDown, onPointerMove, onPointerUp, onPointerLeave]);
+  }, [
+    app,
+    viewport,
+    activeTool,
+    onPointerDown,
+    onPointerMove,
+    onPointerUp,
+    onPointerLeave,
+    onMouseDown,
+    onMouseUp,
+  ]);
 }

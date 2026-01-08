@@ -46,20 +46,18 @@ export function useTokenRenderer({
 }: UseTokenRendererProps) {
   const tokenContainersRef = useRef(new Map<string, DraggableContainer>());
   const activeTool = useBattlemapStore((s) => s.activeTool);
+  const selectedTokenIds = useBattlemapStore((s) => s.selectedTokenIds);
+
   const settingsRef = useRef(settings);
   useEffect(() => {
     settingsRef.current = settings;
   }, [settings]);
-  const activeToolRef = useRef(activeTool);
-  useEffect(() => {
-    activeToolRef.current = activeTool;
-  }, [activeTool]);
 
   useEffect(() => {
     const currentIds = new Set(tokens.map((t) => t.id));
     const tokenContainers = tokenContainersRef.current;
 
-    // Cleanup removed
+    // 1. Cleanup removed tokens
     for (const [id, container] of tokenContainers) {
       if (!currentIds.has(id)) {
         container.destroy({ children: true });
@@ -67,20 +65,27 @@ export function useTokenRenderer({
       }
     }
 
+    // 2. Process all current tokens
     tokens.forEach((token) => {
-      let container = tokenContainers.get(token.id);
+      let container = tokenContainers.get(token.id) as DraggableContainer;
       const size = token.size * settings.gridCellSize;
 
       if (!container) {
-        container = new Container();
+        container = new Container() as DraggableContainer;
         container.label = "token";
-        container.eventMode = "static";
-        container.cursor = "grab";
+        container.eventMode = "dynamic";
+        container.interactive = true;
+        container.isDragging = false;
+
+        const selectionGraphics = new Graphics();
+        selectionGraphics.label = "selection";
+        selectionGraphics.eventMode = "none";
+        container.addChild(selectionGraphics);
 
         const contentContainer = new Container();
         container.addChild(contentContainer);
 
-        // Setup content (Image or Placeholder)
+        // Placeholder/Image logic
         if (token.imageUrl) {
           const sprite = new Sprite(Texture.WHITE);
           sprite.label = "sprite";
@@ -120,102 +125,144 @@ export function useTokenRenderer({
           contentContainer.addChild(circle);
         }
 
-        // Interaction Logic
-        let isDragging = false;
-        let dragOffset = { x: 0, y: 0 };
-
-        container.on("pointerdown", (e) => {
-          if (e.button !== 0 || activeToolRef.current !== "select") return;
-          e.stopPropagation();
-          if (!viewport || !container) return;
-          isDragging = true;
-          container.isDragging = true;
-          container.cursor = "grabbing";
-
-          const worldPos = viewport.toLocal(e.global);
-          const currentSize = token.size * settingsRef.current.gridCellSize;
-          dragOffset = {
-            x: worldPos.x - (container.x + currentSize / 2),
-            y: worldPos.y - (container.y + currentSize / 2),
-          };
-        });
-
-        container.on("globalpointermove", (e) => {
-          if (!isDragging || !viewport || !container) return;
-          const worldPos = viewport.toLocal(e.global);
-          const currentSettings = settingsRef.current;
-          let centerX = worldPos.x - dragOffset.x;
-          let centerY = worldPos.y - dragOffset.y;
-
-          if (currentSettings.snapToGrid) {
-            const snapped = GridRenderer.snapToGrid(
-              centerX,
-              centerY,
-              currentSettings.gridType,
-              currentSettings.gridCellSize
-            );
-            centerX = snapped.x;
-            centerY = snapped.y;
-          }
-
-          const currentSize = token.size * currentSettings.gridCellSize;
-          container.x = centerX - currentSize / 2;
-          container.y = centerY - currentSize / 2;
-        });
-
-        container.on("pointerup", () => {
-          if (!isDragging || !container) return;
-          isDragging = false;
-          container.isDragging = false;
-          container.cursor = "grab";
-
-          // Capture the specific container to avoid TS 'possibly undefined' in nested callbacks
-          const currentContainer = container;
-
-          // Update Yjs
-          const idx = tokensArray.toArray().findIndex((t) => t.id === token.id);
-          if (idx !== -1) {
-            doc.transact(() => {
-              const updated = {
-                ...tokensArray.get(idx),
-                x: currentContainer.x + size / 2,
-                y: currentContainer.y + size / 2,
-              };
-              tokensArray.delete(idx, 1);
-              tokensArray.insert(idx, [updated]);
-            });
-          }
-        });
-
-        container.on("rightup", (e) => {
-          setContextMenu({
-            x: e.client.x,
-            y: e.client.y,
-            actions: [
-              {
-                id: "delete-token",
-                label: "Delete Token",
-                onClick: () => {
-                  const idx = tokensArray
-                    .toArray()
-                    .findIndex((t) => t.id === token.id);
-                  if (idx !== -1) {
-                    doc.transact(() => {
-                      tokensArray.delete(idx, 1);
-                    });
-                  }
-                  setContextMenu(null);
-                },
-                danger: true,
-              },
-            ],
-          });
-        });
-
         tokenContainers.set(token.id, container);
       }
 
-      // Layer Management
+      // 3. Update Listeners (Clear and re-add to ensure latest logic/closures)
+      container.removeAllListeners();
+
+      let dragOffset = { x: 0, y: 0 };
+
+      container.on("pointerdown", (e) => {
+        const state = useBattlemapStore.getState();
+        console.log("Token Interaction - PointerDown:", {
+          id: token.id,
+          tool: state.activeTool,
+          button: e.button,
+        });
+
+        if (e.button !== 0 || state.activeTool !== "select") return;
+        e.stopPropagation();
+
+        // Multi-selection logic
+        const isShift = e.shiftKey;
+        const currentSelected = state.selectedTokenIds;
+        const isCurrentlySelected = currentSelected.includes(token.id);
+
+        if (isShift) {
+          if (isCurrentlySelected) {
+            state.setSelectedTokens(
+              currentSelected.filter((id) => id !== token.id)
+            );
+          } else {
+            state.setSelectedTokens([...currentSelected, token.id]);
+          }
+        } else if (!isCurrentlySelected) {
+          state.setSelectedTokens([token.id]);
+        }
+
+        if (!viewport) return;
+        container.isDragging = true;
+        state.setIsDraggingToken(true);
+        container.cursor = "grabbing";
+
+        const worldPos = viewport.toLocal(e.global);
+        dragOffset = {
+          x: worldPos.x - (container.x + size / 2),
+          y: worldPos.y - (container.y + size / 2),
+        };
+        console.log("Token Dragging Started");
+      });
+
+      container.on("globalpointermove", (e) => {
+        if (!container.isDragging || !viewport) return;
+
+        const worldPos = viewport.toLocal(e.global);
+        const currentSettings = settingsRef.current;
+        let centerX = worldPos.x - dragOffset.x;
+        let centerY = worldPos.y - dragOffset.y;
+
+        if (currentSettings.snapToGrid) {
+          const snapped = GridRenderer.snapToGrid(
+            centerX,
+            centerY,
+            currentSettings.gridType,
+            currentSettings.gridCellSize
+          );
+          centerX = snapped.x;
+          centerY = snapped.y;
+        }
+
+        container.x = centerX - size / 2;
+        container.y = centerY - size / 2;
+      });
+
+      const finalizeDrag = () => {
+        if (!container.isDragging) return;
+        console.log("Token Dragging Finished");
+        container.isDragging = false;
+        container.cursor = "grab";
+
+        const state = useBattlemapStore.getState();
+        state.setIsDraggingToken(false);
+
+        // Sync to Yjs
+        const idx = tokensArray.toArray().findIndex((t) => t.id === token.id);
+        if (idx !== -1) {
+          doc.transact(() => {
+            const tokenData = tokensArray.get(idx);
+            const updated = {
+              ...tokenData,
+              x: container.x + size / 2,
+              y: container.y + size / 2,
+            };
+            tokensArray.delete(idx, 1);
+            tokensArray.insert(idx, [updated]);
+          });
+        }
+      };
+
+      container.on("pointerup", finalizeDrag);
+      container.on("pointerupoutside", finalizeDrag);
+
+      container.on("rightup", (e) => {
+        setContextMenu({
+          x: e.client.x,
+          y: e.client.y,
+          actions: [
+            {
+              id: "delete-token",
+              label: "Delete Token",
+              onClick: () => {
+                const idx = tokensArray
+                  .toArray()
+                  .findIndex((t) => t.id === token.id);
+                if (idx !== -1) {
+                  doc.transact(() => {
+                    tokensArray.delete(idx, 1);
+                  });
+                }
+                setContextMenu(null);
+              },
+              danger: true,
+            },
+          ],
+        });
+      });
+
+      // 4. Update Visual State
+      const isSelected = selectedTokenIds.includes(token.id);
+      const selection = container.getChildByLabel("selection") as Graphics;
+      if (selection) {
+        selection.clear();
+        if (isSelected) {
+          selection.circle(size / 2, size / 2, size / 2 + 4);
+          selection.stroke({ color: 0xf59e0b, width: 3, alpha: 0.8 });
+          selection.fill({ color: 0xf59e0b, alpha: 0.1 });
+        }
+      }
+
+      // Sync Layer
       const layerId = token.layer || "tokens";
       const targetLayer = layerContainersRef.current.get(layerId);
       if (targetLayer && container.parent !== targetLayer) {
@@ -231,7 +278,6 @@ export function useTokenRenderer({
   }, [
     tokens,
     settings,
-    activeTool,
     doc,
     layerContainersRef,
     setContextMenu,
@@ -239,13 +285,22 @@ export function useTokenRenderer({
     viewport,
     getFileBlob,
     isSignedIn,
+    selectedTokenIds,
   ]);
 
-  // Cleanup
+  // Global Cursor update
   useEffect(() => {
-    const containers = tokenContainersRef.current;
+    const isSelect = activeTool === "select";
+    tokenContainersRef.current.forEach((c) => {
+      c.cursor = isSelect ? "grab" : "default";
+    });
+  }, [activeTool]);
+
+  // Cleanup all on unmount
+  useEffect(() => {
+    const list = tokenContainersRef.current;
     return () => {
-      containers.forEach((c) => c.destroy({ children: true }));
+      list.forEach((c) => c.destroy({ children: true }));
     };
   }, []);
 }

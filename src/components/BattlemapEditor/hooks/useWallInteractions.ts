@@ -405,7 +405,6 @@ export function useWallInteractions({
   const wallTool = useBattlemapStore((s) => s.wallTool);
   const isDrawing = useBattlemapStore((s) => s.isDrawing);
   const setIsDrawing = useBattlemapStore((s) => s.setIsDrawing);
-  const selectedSegmentIds = useBattlemapStore((s) => s.selectedSegmentIds);
   const clearCurrentPath = useBattlemapStore((s) => s.clearCurrentPath);
   const walls = useBattlemapStore((s) => s.walls);
 
@@ -501,6 +500,8 @@ export function useWallInteractions({
           doc.transact(() => {
             for (let i = wallsArray.length - 1; i >= 0; i--) {
               const w = wallsArray.get(i);
+              if (!w) continue; // Ensure wall exists
+
               // Check segments
               const segsToDelete = w.segments.filter((s) =>
                 selectedSegmentIds.includes(s.id)
@@ -550,7 +551,7 @@ export function useWallInteractions({
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("keyup", onKeyUp);
     };
-  }, [viewport]);
+  }, [viewport, activeTool, doc, wallsArray]);
 
   // Refs to hold current callback references (to avoid stale closures in event listeners)
   const onPointerDownRef = useRef<
@@ -717,7 +718,7 @@ export function useWallInteractions({
       }
     }
     return segments;
-  }, []);
+  }, []); // nodesToSegments has no external dependencies that change, so empty array is fine.
 
   // Draw preview
   const updatePreview = useCallback(
@@ -861,7 +862,7 @@ export function useWallInteractions({
         g.stroke({ color: 0x3b82f6, width: 2, alpha: 0.8 });
       }
     },
-    [walls]
+    [walls] // Removed nodesRef and dragStateRef as they are refs and their .current values are accessed directly.
   );
 
   // Pointer handlers
@@ -885,13 +886,13 @@ export function useWallInteractions({
       let canvasX: number;
       let canvasY: number;
 
-      if ("offsetX" in e && typeof (e as any).offsetX === "number") {
+      if ("offsetX" in e && typeof (e as MouseEvent).offsetX === "number") {
         // Standard PointerEvent/MouseEvent
-        canvasX = (e as any).offsetX;
-        canvasY = (e as any).offsetY;
+        canvasX = (e as MouseEvent).offsetX;
+        canvasY = (e as MouseEvent).offsetY;
       } else {
         // TouchEvent or fallback
-        const te = e as any;
+        const te = e as TouchEvent | PointerEvent;
         const clientX = te.clientX ?? te.touches?.[0]?.clientX ?? 0;
         const clientY = te.clientY ?? te.touches?.[0]?.clientY ?? 0;
         const canvas = app?.canvas as HTMLCanvasElement;
@@ -912,7 +913,10 @@ export function useWallInteractions({
         appendToCurrentPath,
         selectedWallId,
         selectedSegmentIds,
+        isDraggingToken,
       } = state;
+
+      if (isDraggingToken) return;
 
       if (activeTool === "select") {
         const currentWalls = useBattlemapStore.getState().walls;
@@ -1032,7 +1036,7 @@ export function useWallInteractions({
 
         // Update selection
         if (hitWallId && hitSegmentId) {
-          const isShift = (e as any).shiftKey;
+          const isShift = (e as MouseEvent).shiftKey;
           let newSelectedSegments = [...selectedSegmentIds];
 
           if (isShift) {
@@ -1071,16 +1075,18 @@ export function useWallInteractions({
             // Usual behavior: Click empty space clears selection immediately.
             // Drag box starts new selection.
             // Shift+Drag adds.
-            if (!(e as any).shiftKey) {
+            if (!(e as MouseEvent).shiftKey) {
               useBattlemapStore.setState({
                 selectedWallId: null,
                 selectedSegmentIds: [],
+                selectedTokenIds: [],
               });
             }
           } else {
             useBattlemapStore.setState({
               selectedWallId: null,
               selectedSegmentIds: [],
+              selectedTokenIds: [],
             });
           }
         }
@@ -1255,7 +1261,6 @@ export function useWallInteractions({
       wallsArray,
       app,
       settings.layers,
-      selectedSegmentIds,
     ]
   );
 
@@ -1592,7 +1597,7 @@ export function useWallInteractions({
 
         // Handle Shift Key (Add to selection)
         // e.shiftKey might not be available on TouchEvent consistently without check
-        const isShift = (e as any).shiftKey;
+        const isShift = (e as MouseEvent).shiftKey;
         if (isShift) {
           const current = useBattlemapStore.getState().selectedSegmentIds;
           // Merge unique
@@ -1771,7 +1776,15 @@ export function useWallInteractions({
       }
       // Polygon logic now handled via DoubleClick/state, pointerUp just ends handle drag
     },
-    [activeTool, viewport, snapCoordinate, doc, wallsArray, app]
+    [
+      activeTool,
+      viewport,
+      snapCoordinate,
+      doc,
+      wallsArray,
+      app,
+      settings.activeLayerId,
+    ]
   );
 
   // Escape to cancel drawing
@@ -1896,18 +1909,18 @@ export function useWallInteractions({
 
       if (hitWallId && bestValues) {
         doc.transact(() => {
-          const wallItem = wallsArray.get(bestValues!.wallIndex);
+          const wallItem = wallsArray.get(bestValues.wallIndex);
           if (!wallItem) return;
 
           const newSegments = [...wallItem.segments];
-          const seg = newSegments[bestValues!.segIndex];
+          const seg = newSegments[bestValues.segIndex];
 
-          const [newSeg1, newSeg2] = splitSegment(seg, bestValues!.t);
+          const [newSeg1, newSeg2] = splitSegment(seg, bestValues.t);
 
-          newSegments.splice(bestValues!.segIndex, 1, newSeg1, newSeg2);
+          newSegments.splice(bestValues.segIndex, 1, newSeg1, newSeg2);
 
-          wallsArray.delete(bestValues!.wallIndex, 1);
-          wallsArray.insert(bestValues!.wallIndex, [
+          wallsArray.delete(bestValues.wallIndex, 1);
+          wallsArray.insert(bestValues.wallIndex, [
             { ...wallItem, segments: newSegments },
           ]);
         });
@@ -1954,7 +1967,6 @@ export function useWallInteractions({
       app,
       wallsArray,
       doc,
-      distToSegment,
       activeTool,
       nodesToSegments,
       settings.activeLayerId,
@@ -2199,7 +2211,7 @@ export function useWallInteractions({
                   label: "Merge Segments",
                   onClick: () => {
                     doc.transact(() => {
-                      const w = wallsArray.get(bestValues!.wallIndex);
+                      const w = wallsArray.get(bestValues.wallIndex);
                       if (!w) return;
 
                       const newSegments = [...w.segments];
@@ -2215,8 +2227,8 @@ export function useWallInteractions({
                       // Splice at first.index, remove 2, insert merged
                       newSegments.splice(first.index, 2, mergedSeg);
 
-                      wallsArray.delete(bestValues!.wallIndex, 1);
-                      wallsArray.insert(bestValues!.wallIndex, [
+                      wallsArray.delete(bestValues.wallIndex, 1);
+                      wallsArray.insert(bestValues.wallIndex, [
                         { ...w, segments: newSegments },
                       ]);
 
@@ -2237,7 +2249,7 @@ export function useWallInteractions({
         });
       }
     },
-    [viewport, app, wallsArray, doc, setContextMenu, distToSegment]
+    [viewport, app, wallsArray, doc, setContextMenu]
   );
 
   const onContextMenuRef = useRef<(e: PointerEvent | MouseEvent) => void>(

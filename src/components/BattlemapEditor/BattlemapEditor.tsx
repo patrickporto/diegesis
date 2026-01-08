@@ -233,6 +233,7 @@ export function BattlemapEditor({ fileId, doc }: BattlemapEditorProps) {
     app,
     getFileBlob,
     isReady,
+    updateSettings,
   });
 
   useFogRenderer({ fogShapes, layerContainersRef, app, isReady, settings });

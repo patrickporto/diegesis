@@ -29,6 +29,7 @@ export function useBattlemapLayers({
         if (layer.id === "grid") {
           const grid = new Graphics();
           grid.label = "grid";
+          grid.eventMode = "none";
           container = grid;
         } else {
           container = new Container();

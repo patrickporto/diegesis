@@ -13,11 +13,12 @@ import {
   ToolType,
   Wall,
   WallToolType,
-} from "@/components/BattlemapEditor/types";
+} from "../components/BattlemapEditor/types";
 
 interface BattlemapState {
   // Tool State (local, not synced to Yjs)
   activeTool: ToolType;
+  previousTool: ToolType | null; // For temporary tool changes (Space, Middle Click)
   fogMode: FogToolMode;
   fogTool: FogToolType;
   wallTool: WallToolType;
@@ -25,6 +26,8 @@ interface BattlemapState {
   isDrawing: boolean;
   selectedWallId: string | null;
   selectedSegmentIds: string[];
+  selectedTokenIds: string[];
+  isDraggingToken: boolean;
 
   // Current drawing path (transient, not synced)
   currentPath: number[];
@@ -39,6 +42,8 @@ interface BattlemapState {
 
   // Actions - Tool State
   setActiveTool: (tool: ToolType) => void;
+  enableTemporaryPan: () => void; // Temporarily switch to pan (Space, Middle Click)
+  disableTemporaryPan: () => void; // Restore previous tool
   setFogMode: (mode: FogToolMode) => void;
   setFogTool: (tool: FogToolType) => void;
   setWallTool: (tool: WallToolType) => void;
@@ -49,6 +54,8 @@ interface BattlemapState {
   clearCurrentPath: () => void;
   setSelectedWall: (id: string | null) => void;
   setSelectedSegments: (ids: string[]) => void;
+  setSelectedTokens: (ids: string[]) => void;
+  setIsDraggingToken: (dragging: boolean) => void;
 
   // Actions - Yjs Sync (called by observers)
   syncFogShapes: (shapes: FogShape[]) => void;
@@ -69,6 +76,7 @@ interface BattlemapState {
 export const useBattlemapStore = create<BattlemapState>((set) => ({
   // Initial State - Tools
   activeTool: "select",
+  previousTool: null,
   fogMode: "hide",
   fogTool: "brush",
   wallTool: "polygon",
@@ -76,6 +84,8 @@ export const useBattlemapStore = create<BattlemapState>((set) => ({
   isDrawing: false,
   selectedWallId: null,
   selectedSegmentIds: [],
+  selectedTokenIds: [],
+  isDraggingToken: false,
   currentPath: [],
 
   // Initial State - Synced
@@ -87,7 +97,18 @@ export const useBattlemapStore = create<BattlemapState>((set) => ({
   settings: DEFAULT_SETTINGS,
 
   // Tool Actions
-  setActiveTool: (tool) => set({ activeTool: tool }),
+  setActiveTool: (tool) => set({ activeTool: tool, previousTool: null }),
+  enableTemporaryPan: () =>
+    set((state) => ({
+      previousTool:
+        state.activeTool !== "pan" ? state.activeTool : state.previousTool,
+      activeTool: "pan",
+    })),
+  disableTemporaryPan: () =>
+    set((state) => ({
+      activeTool: state.previousTool || state.activeTool,
+      previousTool: null,
+    })),
   setFogMode: (mode) => set({ fogMode: mode }),
   setFogTool: (tool) => set({ fogTool: tool }),
   setWallTool: (tool) => set({ wallTool: tool }),
@@ -99,6 +120,8 @@ export const useBattlemapStore = create<BattlemapState>((set) => ({
   clearCurrentPath: () => set({ currentPath: [] }),
   setSelectedWall: (id) => set({ selectedWallId: id }),
   setSelectedSegments: (ids) => set({ selectedSegmentIds: ids }),
+  setSelectedTokens: (ids) => set({ selectedTokenIds: ids }),
+  setIsDraggingToken: (dragging) => set({ isDraggingToken: dragging }),
 
   // Sync Actions (called by Yjs observers in component)
   syncFogShapes: (shapes) => set({ fogShapes: shapes }),
@@ -132,3 +155,7 @@ export const useSelectedWallId = () =>
   useBattlemapStore((s) => s.selectedWallId);
 export const useSelectedSegmentIds = () =>
   useBattlemapStore((s) => s.selectedSegmentIds);
+export const useSelectedTokenIds = () =>
+  useBattlemapStore((s) => s.selectedTokenIds);
+export const useIsDraggingToken = () =>
+  useBattlemapStore((s) => s.isDraggingToken);
