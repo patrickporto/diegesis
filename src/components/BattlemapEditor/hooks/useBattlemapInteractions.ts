@@ -87,10 +87,17 @@ export function useBattlemapInteractions({
   // Toggle drag based on tool
   useEffect(() => {
     if (!viewport) return;
-    if (activeTool === "select" || isSpacePressedRef.current) {
-      if (activeTool === "select") viewport.plugins.resume("drag");
+
+    // Resume drag if:
+    // 1. Tool is PAN
+    // 2. Spacebar is held (temporary pan)
+    // 3. Tool is Select but dragging viewport (handled by Spacebar check mostly, or middle click if configured)
+
+    // Explicitly:
+    if (activeTool === "pan" || isSpacePressedRef.current) {
+      viewport.plugins.resume("drag");
     } else {
-      if (!isSpacePressedRef.current) viewport.plugins.pause("drag");
+      viewport.plugins.pause("drag");
     }
   }, [activeTool, viewport]);
 
@@ -494,7 +501,11 @@ export function useBattlemapInteractions({
       }
 
       // Default clearance for non-polygon tools (or failed polygon)
-      if (activeTool !== "fog" || fogTool !== "polygon") {
+      // Don't reset for wall tool - it has its own drawing logic
+      if (
+        activeTool !== "wall" &&
+        (activeTool !== "fog" || fogTool !== "polygon")
+      ) {
         setIsDrawing(false);
         clearCurrentPath();
         if (previewGraphicsRef.current) previewGraphicsRef.current.clear();

@@ -1,12 +1,6 @@
 import React, { useEffect, useRef } from "react";
 
-export interface ContextMenuAction {
-  id: string;
-  label: string;
-  danger?: boolean;
-  onClick: () => void;
-  children?: ContextMenuAction[];
-}
+import { ContextMenuAction } from "./types";
 
 interface ContextMenuProps {
   x: number;

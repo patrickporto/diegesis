@@ -12,7 +12,7 @@ export type GridColor = "black" | "white" | "orange";
 export interface Layer {
   id: string;
   name: string;
-  type: "tokens" | "map" | "fog";
+  type: "tokens" | "map" | "fog" | "obstacles";
   visible: boolean;
   locked: boolean;
   opacity: number;
@@ -63,7 +63,51 @@ export interface DrawingPath {
   layer: string;
 }
 
-export type ToolType = "select" | "token" | "text" | "draw" | "eraser" | "fog";
+export type ToolType =
+  | "select"
+  | "pan"
+  | "token"
+  | "text"
+  | "draw"
+  | "eraser"
+  | "fog"
+  | "wall";
+
+// Wall Tool Types
+export type WallToolType =
+  | "polygon" // Draw connected segments with clicks (and drag for bezier)
+  | "rect" // Draw rectangle walls
+  | "ellipse" // Draw ellipse walls (approximated with segments)
+  | "door"; // Place doors on existing walls
+
+export type WallCurveType = "linear" | "quadratic" | "cubic";
+
+// Wall segment represents a single line between two points
+export interface WallSegment {
+  id: string;
+  // Start and end points
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+  // Bezier control points (optional, for curved walls)
+  cp1x?: number;
+  cp1y?: number;
+  cp2x?: number; // Only for cubic bezier
+  cp2y?: number;
+  curveType: WallCurveType;
+  // Properties
+  isDoor: boolean;
+  allowsMovement: boolean; // default: true
+  allowsVision: boolean; // default: false
+  allowsSound: boolean; // default: false
+}
+
+export interface Wall {
+  id: string;
+  segments: WallSegment[];
+  layer: string;
+}
 
 export type FogToolMode = "reveal" | "hide";
 export type FogToolType =
@@ -98,3 +142,11 @@ export const GRID_COLORS: Record<GridColor, number> = {
   white: 0xffffff,
   orange: 0xff6600,
 };
+
+export interface ContextMenuAction {
+  id: string;
+  label: string;
+  danger?: boolean;
+  onClick: () => void;
+  children?: ContextMenuAction[];
+}

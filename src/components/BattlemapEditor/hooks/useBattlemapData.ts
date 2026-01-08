@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as Y from "yjs";
 
+import { useBattlemapStore } from "../../../stores/useBattlemapStore";
 import {
   BattlemapSettings,
   DEFAULT_SETTINGS,
@@ -8,6 +9,7 @@ import {
   FogShape,
   TextAnnotation,
   Token,
+  Wall,
 } from "../types";
 
 interface UseBattlemapDataProps {
@@ -45,12 +47,18 @@ export function useBattlemapData({ doc, fileId }: UseBattlemapDataProps) {
     [doc, fileId]
   );
 
+  const wallsArray = useMemo(
+    () => doc.getArray<Wall>(`battlemap-walls-${fileId}`),
+    [doc, fileId]
+  );
+
   // Local React State
   const [settings, setSettings] = useState<BattlemapSettings>(DEFAULT_SETTINGS);
   const [tokens, setTokens] = useState<Token[]>([]);
   const [drawings, setDrawings] = useState<DrawingPath[]>([]);
   const [texts, setTexts] = useState<TextAnnotation[]>([]);
   const [fogShapes, setFogShapes] = useState<FogShape[]>([]);
+  const [walls, setWalls] = useState<Wall[]>([]);
 
   // Refs for current values (to avoid stale closures in effects if needed)
   const settingsRef = useRef(settings);
@@ -101,6 +109,18 @@ export function useBattlemapData({ doc, fileId }: UseBattlemapDataProps) {
     return () => fogArray.unobserve(observer);
   }, [fogArray]);
 
+  useEffect(() => {
+    const { syncWalls } = useBattlemapStore.getState();
+    const observer = () => {
+      const currentWalls = wallsArray.toArray();
+      setWalls(currentWalls);
+      syncWalls(currentWalls); // Sync to Zustand store for global access
+    };
+    wallsArray.observe(observer);
+    observer();
+    return () => wallsArray.unobserve(observer);
+  }, [wallsArray]);
+
   // Actions
   const updateSettings = (updates: Partial<BattlemapSettings>) => {
     doc.transact(() => {
@@ -116,10 +136,12 @@ export function useBattlemapData({ doc, fileId }: UseBattlemapDataProps) {
     drawings,
     texts,
     fogShapes,
+    walls,
     fogArray, // Return raw Y.Array for fog since it needs transactional updates often handled by tools
     tokensArray,
     drawingsArray,
     textsArray,
+    wallsArray,
     updateSettings,
     settingsRef,
   };

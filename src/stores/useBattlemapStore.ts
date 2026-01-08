@@ -11,6 +11,8 @@ import {
   TextAnnotation,
   Token,
   ToolType,
+  Wall,
+  WallToolType,
 } from "@/components/BattlemapEditor/types";
 
 interface BattlemapState {
@@ -18,8 +20,11 @@ interface BattlemapState {
   activeTool: ToolType;
   fogMode: FogToolMode;
   fogTool: FogToolType;
+  wallTool: WallToolType;
   brushSize: number;
   isDrawing: boolean;
+  selectedWallId: string | null;
+  selectedSegmentIds: string[];
 
   // Current drawing path (transient, not synced)
   currentPath: number[];
@@ -29,23 +34,28 @@ interface BattlemapState {
   tokens: Token[];
   drawings: DrawingPath[];
   texts: TextAnnotation[];
+  walls: Wall[];
   settings: BattlemapSettings;
 
   // Actions - Tool State
   setActiveTool: (tool: ToolType) => void;
   setFogMode: (mode: FogToolMode) => void;
   setFogTool: (tool: FogToolType) => void;
+  setWallTool: (tool: WallToolType) => void;
   setBrushSize: (size: number) => void;
   setIsDrawing: (drawing: boolean) => void;
   setCurrentPath: (path: number[]) => void;
   appendToCurrentPath: (x: number, y: number) => void;
   clearCurrentPath: () => void;
+  setSelectedWall: (id: string | null) => void;
+  setSelectedSegments: (ids: string[]) => void;
 
   // Actions - Yjs Sync (called by observers)
   syncFogShapes: (shapes: FogShape[]) => void;
   syncTokens: (tokens: Token[]) => void;
   syncDrawings: (drawings: DrawingPath[]) => void;
   syncTexts: (texts: TextAnnotation[]) => void;
+  syncWalls: (walls: Wall[]) => void;
   syncSettings: (settings: BattlemapSettings) => void;
 
   // Fog Actions (with Yjs transaction)
@@ -61,8 +71,11 @@ export const useBattlemapStore = create<BattlemapState>((set) => ({
   activeTool: "select",
   fogMode: "hide",
   fogTool: "brush",
+  wallTool: "polygon",
   brushSize: 50,
   isDrawing: false,
+  selectedWallId: null,
+  selectedSegmentIds: [],
   currentPath: [],
 
   // Initial State - Synced
@@ -70,24 +83,29 @@ export const useBattlemapStore = create<BattlemapState>((set) => ({
   tokens: [],
   drawings: [],
   texts: [],
+  walls: [],
   settings: DEFAULT_SETTINGS,
 
   // Tool Actions
   setActiveTool: (tool) => set({ activeTool: tool }),
   setFogMode: (mode) => set({ fogMode: mode }),
   setFogTool: (tool) => set({ fogTool: tool }),
+  setWallTool: (tool) => set({ wallTool: tool }),
   setBrushSize: (size) => set({ brushSize: size }),
   setIsDrawing: (drawing) => set({ isDrawing: drawing }),
   setCurrentPath: (path) => set({ currentPath: path }),
   appendToCurrentPath: (x, y) =>
     set((state) => ({ currentPath: [...state.currentPath, x, y] })),
   clearCurrentPath: () => set({ currentPath: [] }),
+  setSelectedWall: (id) => set({ selectedWallId: id }),
+  setSelectedSegments: (ids) => set({ selectedSegmentIds: ids }),
 
   // Sync Actions (called by Yjs observers in component)
   syncFogShapes: (shapes) => set({ fogShapes: shapes }),
   syncTokens: (tokens) => set({ tokens: tokens }),
   syncDrawings: (drawings) => set({ drawings: drawings }),
   syncTexts: (texts) => set({ texts: texts }),
+  syncWalls: (walls) => set({ walls: walls }),
   syncSettings: (settings) => set({ settings: settings }),
 
   // Fog Shape Creation
@@ -103,8 +121,14 @@ export const useBattlemapStore = create<BattlemapState>((set) => ({
 export const useActiveTool = () => useBattlemapStore((s) => s.activeTool);
 export const useFogMode = () => useBattlemapStore((s) => s.fogMode);
 export const useFogTool = () => useBattlemapStore((s) => s.fogTool);
+export const useWallTool = () => useBattlemapStore((s) => s.wallTool);
 export const useBrushSize = () => useBattlemapStore((s) => s.brushSize);
 export const useIsDrawing = () => useBattlemapStore((s) => s.isDrawing);
 export const useFogShapes = () => useBattlemapStore((s) => s.fogShapes);
 export const useTokens = () => useBattlemapStore((s) => s.tokens);
+export const useWalls = () => useBattlemapStore((s) => s.walls);
 export const useSettings = () => useBattlemapStore((s) => s.settings);
+export const useSelectedWallId = () =>
+  useBattlemapStore((s) => s.selectedWallId);
+export const useSelectedSegmentIds = () =>
+  useBattlemapStore((s) => s.selectedSegmentIds);

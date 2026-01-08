@@ -1,4 +1,11 @@
-import { Assets, Container, Graphics, Sprite, Texture } from "pixi.js";
+import {
+  Application,
+  Assets,
+  Container,
+  Graphics,
+  Sprite,
+  Texture,
+} from "pixi.js";
 import { Viewport } from "pixi-viewport";
 import { useEffect, useRef } from "react";
 import * as Y from "yjs";
@@ -18,6 +25,9 @@ interface UseTokenRendererProps {
   doc: Y.Doc;
   tokensArray: Y.Array<Token>;
   viewport: Viewport | null;
+  app: Application | null;
+  isSignedIn: boolean;
+  getFileBlob: (fileId: string) => Promise<Blob>;
   setContextMenu: (
     menu: { x: number; y: number; actions: ContextMenuAction[] } | null
   ) => void;
@@ -30,6 +40,8 @@ export function useTokenRenderer({
   doc,
   tokensArray,
   viewport,
+  isSignedIn,
+  getFileBlob,
   setContextMenu,
 }: UseTokenRendererProps) {
   const tokenContainersRef = useRef(new Map<string, DraggableContainer>());
@@ -83,9 +95,24 @@ export function useTokenRenderer({
           contentContainer.addChild(mask);
           contentContainer.addChild(sprite);
 
-          Assets.load(token.imageUrl).then((texture) => {
-            if (container && !container.destroyed) sprite.texture = texture;
-          });
+          const loadTexture = async () => {
+            if (token.imageUrl.startsWith("drive://")) {
+              if (!isSignedIn) return;
+              try {
+                const id = token.imageUrl.replace("drive://", "");
+                const blob = await getFileBlob(id);
+                const url = URL.createObjectURL(blob);
+                const texture = await Assets.load(url);
+                if (container && !container.destroyed) sprite.texture = texture;
+              } catch (e) {
+                console.error("Failed to load drive token", e);
+              }
+            } else {
+              const texture = await Assets.load(token.imageUrl);
+              if (container && !container.destroyed) sprite.texture = texture;
+            }
+          };
+          loadTexture();
         } else {
           const circle = new Graphics();
           circle.circle(size / 2, size / 2, size / 2);
@@ -142,14 +169,17 @@ export function useTokenRenderer({
           container.isDragging = false;
           container.cursor = "grab";
 
+          // Capture the specific container to avoid TS 'possibly undefined' in nested callbacks
+          const currentContainer = container;
+
           // Update Yjs
           const idx = tokensArray.toArray().findIndex((t) => t.id === token.id);
           if (idx !== -1) {
             doc.transact(() => {
               const updated = {
                 ...tokensArray.get(idx),
-                x: container.x + size / 2,
-                y: container.y + size / 2,
+                x: currentContainer.x + size / 2,
+                y: currentContainer.y + size / 2,
               };
               tokensArray.delete(idx, 1);
               tokensArray.insert(idx, [updated]);
@@ -207,6 +237,8 @@ export function useTokenRenderer({
     setContextMenu,
     tokensArray,
     viewport,
+    getFileBlob,
+    isSignedIn,
   ]);
 
   // Cleanup

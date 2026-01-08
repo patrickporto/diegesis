@@ -4,9 +4,9 @@ import * as Y from "yjs";
 
 import { useSync } from "@/contexts/SyncContext";
 
-import { ContextMenu, ContextMenuAction } from "./ContextMenu";
+import { ContextMenu } from "./ContextMenu";
 import { CropImageModal } from "./CropImageModal";
-import { Layer } from "./types";
+import { ContextMenuAction, Layer } from "./types";
 
 export interface TokenLibraryItem {
   id: string;
@@ -605,7 +605,9 @@ export function TokenManagerSidebar({
                 .sort((a, b) => a.sortOrder - b.sortOrder)
                 .findIndex((l) => l.id === layer.id);
               const isRestricted =
-                layer.id === "background" || layer.id === "grid";
+                layer.id === "background" ||
+                layer.id === "grid" ||
+                layer.id === "fog";
 
               return (
                 <div

@@ -17,7 +17,7 @@ interface UseFogRendererProps {
   settings: BattlemapSettings;
 }
 
-const FOG_SIZE = 8000;
+const FOG_SIZE = 2048;
 
 export function useFogRenderer({
   fogShapes,
@@ -41,11 +41,13 @@ export function useFogRenderer({
       fogGraphics.rect(0, 0, FOG_SIZE, FOG_SIZE);
       fogGraphics.fill({ color: 0x000000, alpha: opacity });
 
-      app.renderer.render({
-        container: fogGraphics,
-        target: fogTexture,
-        clear: true,
-      });
+      if (fogTexture.width > 0 && fogTexture.height > 0) {
+        app.renderer.render({
+          container: fogGraphics,
+          target: fogTexture,
+          clear: true,
+        });
+      }
     },
     [app]
   );
@@ -61,8 +63,8 @@ export function useFogRenderer({
     // Create the RenderTexture for the mask
     // White areas = fog visible, Black/Transparent = fog invisible (revealed)
     const maskTexture = RenderTexture.create({
-      width: FOG_SIZE,
-      height: FOG_SIZE,
+      width: Math.max(1, FOG_SIZE),
+      height: Math.max(1, FOG_SIZE),
     });
     maskTextureRef.current = maskTexture;
 
@@ -75,8 +77,8 @@ export function useFogRenderer({
 
     // Render fog graphics to a texture for the fog sprite
     const fogTexture = RenderTexture.create({
-      width: FOG_SIZE,
-      height: FOG_SIZE,
+      width: Math.max(1, FOG_SIZE),
+      height: Math.max(1, FOG_SIZE),
     });
     fogTextureRef.current = fogTexture;
     app.renderer.render({
@@ -154,11 +156,13 @@ export function useFogRenderer({
     });
 
     // Render the mask container to the mask texture
-    app.renderer.render({
-      container: maskContainer,
-      target: maskTexture,
-      clear: true,
-    });
+    if (maskTexture.width > 0 && maskTexture.height > 0) {
+      app.renderer.render({
+        container: maskContainer,
+        target: maskTexture,
+        clear: true,
+      });
+    }
 
     // Clean up the temporary container
     maskContainer.destroy({ children: true });

@@ -1,6 +1,6 @@
 import React from "react";
 
-import { FogToolMode, FogToolType, ToolType } from "./types";
+import { FogToolMode, FogToolType, ToolType, WallToolType } from "./types";
 
 interface BattlemapToolbarProps {
   activeTool: ToolType;
@@ -15,9 +15,32 @@ interface BattlemapToolbarProps {
   onFogToolChange?: (tool: FogToolType) => void;
   brushSize?: number;
   onBrushSizeChange?: (size: number) => void;
+
+  // Wall Specific
+  wallTool?: WallToolType;
+  onWallToolChange?: (tool: WallToolType) => void;
 }
 
 const tools: { id: ToolType; label: string; icon: React.ReactNode }[] = [
+  {
+    id: "pan",
+    label: "Pan (Hand)",
+    icon: (
+      <svg
+        className="w-5 h-5"
+        fill="none"
+        viewBox="0 0 24 24"
+        stroke="currentColor"
+      >
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth={2}
+          d="M7 11.5V14m0-2.5v-6a1.5 1.5 0 113 0m-3 6a1.5 1.5 0 00-3 0v2a7.5 7.5 0 0015 0v-5a1.5 1.5 0 00-3 0m-6-3V11m0-5.5v-1a1.5 1.5 0 013 0v1m0 0V11m0-5.5a1.5 1.5 0 013 0v3m0 0V11"
+        />
+      </svg>
+    ),
+  },
   {
     id: "select",
     label: "Select",
@@ -109,6 +132,25 @@ const tools: { id: ToolType; label: string; icon: React.ReactNode }[] = [
           strokeLinejoin="round"
           strokeWidth={2}
           d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"
+        />
+      </svg>
+    ),
+  },
+  {
+    id: "wall",
+    label: "Walls",
+    icon: (
+      <svg
+        className="w-5 h-5"
+        fill="none"
+        viewBox="0 0 24 24"
+        stroke="currentColor"
+      >
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth={2}
+          d="M4 5h16M4 5v14M4 19h16M20 5v14M9 5v14M14 5v14"
         />
       </svg>
     ),
@@ -231,6 +273,76 @@ const fogSubTools: { id: FogToolType; label: string; icon: React.ReactNode }[] =
     },
   ];
 
+const wallSubTools: {
+  id: WallToolType;
+  label: string;
+  icon: React.ReactNode;
+}[] = [
+  {
+    id: "polygon",
+    label: "Polygon Wall",
+    icon: (
+      <svg
+        className="w-4 h-4"
+        fill="none"
+        viewBox="0 0 24 24"
+        stroke="currentColor"
+      >
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth={2}
+          d="M4 6l4-2 4 2 4-2 4 2v12l-4 2-4-2-4 2-4-2V6z"
+        />
+      </svg>
+    ),
+  },
+  {
+    id: "rect",
+    label: "Rectangle Wall",
+    icon: (
+      <svg
+        className="w-4 h-4"
+        fill="none"
+        viewBox="0 0 24 24"
+        stroke="currentColor"
+      >
+        <rect x="3" y="3" width="18" height="18" rx="1" strokeWidth={2} />
+      </svg>
+    ),
+  },
+  {
+    id: "ellipse",
+    label: "Ellipse Wall",
+    icon: (
+      <svg
+        className="w-4 h-4"
+        fill="none"
+        viewBox="0 0 24 24"
+        stroke="currentColor"
+      >
+        <ellipse cx="12" cy="12" rx="9" ry="7" strokeWidth={2} />
+      </svg>
+    ),
+  },
+
+  {
+    id: "door",
+    label: "Door",
+    icon: (
+      <svg
+        className="w-4 h-4"
+        fill="none"
+        viewBox="0 0 24 24"
+        stroke="currentColor"
+      >
+        <rect x="5" y="2" width="14" height="20" rx="1" strokeWidth={2} />
+        <circle cx="15" cy="12" r="1.5" fill="currentColor" />
+      </svg>
+    ),
+  },
+];
+
 export function BattlemapToolbar({
   activeTool,
   onToolChange,
@@ -242,6 +354,8 @@ export function BattlemapToolbar({
   onFogToolChange,
   brushSize,
   onBrushSizeChange,
+  wallTool,
+  onWallToolChange,
 }: BattlemapToolbarProps) {
   return (
     <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-50 flex flex-col items-center gap-2">
@@ -312,6 +426,50 @@ export function BattlemapToolbar({
               </div>
             </>
           )}
+        </div>
+      )}
+
+      {/* Wall Sub-Toolbar */}
+      {activeTool === "wall" && (
+        <div className="flex items-center gap-2 px-3 py-2 bg-slate-800/90 backdrop-blur-lg border border-slate-700 rounded-xl shadow-xl animate-fade-in-up">
+          {/* Wall Drawing Tools */}
+          <div className="flex gap-1">
+            {wallSubTools.map((t) => (
+              <button
+                key={t.id}
+                onClick={() => onWallToolChange?.(t.id)}
+                title={t.label}
+                className={`p-1.5 rounded-md transition-colors ${
+                  wallTool === t.id
+                    ? "bg-amber-600 text-white"
+                    : "text-slate-400 hover:bg-slate-700 hover:text-slate-200"
+                }`}
+              >
+                {t.icon}
+              </button>
+            ))}
+          </div>
+
+          <div className="w-px h-5 bg-slate-700 mx-1" />
+
+          {/* Snap Indicator */}
+          <div className="flex items-center gap-1.5 px-2 py-1 bg-slate-900/50 rounded-md border border-slate-700">
+            <svg
+              className="w-3.5 h-3.5 text-amber-400"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M13 10V3L4 14h7v7l9-11h-7z"
+              />
+            </svg>
+            <span className="text-xs text-slate-400">Snap: ON</span>
+            <span className="text-xs text-slate-500">(Ctrl to disable)</span>
+          </div>
         </div>
       )}
 

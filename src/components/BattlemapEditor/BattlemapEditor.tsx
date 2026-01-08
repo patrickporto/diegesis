@@ -18,9 +18,10 @@ import { useGridRenderer } from "./hooks/useGridRenderer";
 // Hooks
 import { usePixiApp } from "./hooks/usePixiApp";
 import { useTokenRenderer } from "./hooks/useTokenRenderer";
+import { useWallInteractions } from "./hooks/useWallInteractions";
+import { useWallRenderer } from "./hooks/useWallRenderer";
 import { TokenManagerSidebar } from "./TokenManagerSidebar";
-import { BattlemapSettings } from "./types";
-import { ContextMenuAction } from "./types";
+import { BattlemapSettings, ContextMenuAction, Layer, Token } from "./types";
 
 interface BattlemapEditorProps {
   fileId: string;
@@ -28,7 +29,7 @@ interface BattlemapEditorProps {
 }
 
 export function BattlemapEditor({ fileId, doc }: BattlemapEditorProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement | null>(null);
   const [contextMenu, setContextMenu] = useState<{
     x: number;
     y: number;
@@ -48,6 +49,8 @@ export function BattlemapEditor({ fileId, doc }: BattlemapEditorProps) {
     setFogTool,
     brushSize,
     setBrushSize,
+    wallTool,
+    setWallTool,
   } = useBattlemapStore();
 
   const {
@@ -71,51 +74,110 @@ export function BattlemapEditor({ fileId, doc }: BattlemapEditorProps) {
     textsArray,
     fogShapes,
     fogArray,
+    walls,
+    wallsArray,
   } = useBattlemapData({ doc, fileId });
 
   // Restore Default Layers Logic
   useEffect(() => {
-    // Only init if loaded and empty.
-    if (synced && (!settings.layers || settings.layers.length === 0)) {
-      const defaults: Layer[] = [
-        {
-          id: "background",
-          name: "Background",
-          type: "map",
-          visible: true,
-          locked: true,
-          opacity: 1,
-          sortOrder: 0,
-        },
-        {
-          id: "fog",
-          name: "Fog of War",
-          type: "fog",
-          visible: true,
-          locked: true,
-          opacity: 1,
-          sortOrder: 50,
-        },
-        {
-          id: "tokens",
-          name: "Tokens",
-          type: "tokens",
-          visible: true,
-          locked: false,
-          opacity: 1,
-          sortOrder: 2,
-        },
-        {
-          id: "grid",
-          name: "Grid",
-          type: "map",
-          visible: true,
-          locked: true,
-          opacity: 1,
-          sortOrder: 100,
-        },
-      ];
-      updateSettings({ layers: defaults, activeLayerId: "tokens" });
+    // Only init if loaded.
+    if (!synced) return;
+
+    // Default layers definition
+    const defineDefaults = (): Layer[] => [
+      {
+        id: "background",
+        name: "Background",
+        type: "map",
+        visible: true,
+        locked: true,
+        opacity: 1,
+        sortOrder: 0,
+      },
+      {
+        id: "obstacles",
+        name: "Walls & Obstacles",
+        type: "obstacles",
+        visible: true,
+        locked: false,
+        opacity: 1,
+        sortOrder: 25, // Above tokens (2), below fog (50)
+      },
+      {
+        id: "fog",
+        name: "Fog of War",
+        type: "fog",
+        visible: true,
+        locked: true,
+        opacity: 1,
+        sortOrder: 50,
+      },
+      {
+        id: "tokens",
+        name: "Tokens",
+        type: "tokens",
+        visible: true,
+        locked: false,
+        opacity: 1,
+        sortOrder: 2,
+      },
+      {
+        id: "grid",
+        name: "Grid",
+        type: "map",
+        visible: true,
+        locked: true,
+        opacity: 1,
+        sortOrder: 100,
+      },
+    ];
+
+    // Full Init if empty
+    if (!settings.layers || settings.layers.length === 0) {
+      updateSettings({ layers: defineDefaults(), activeLayerId: "tokens" });
+    } else {
+      // Migration & Enforcement: Ensure all restricted layers exist and have correct props
+      const currentLayers = [...settings.layers];
+      let hasChanges = false;
+      const defaults = defineDefaults();
+
+      // check for missing layers
+      defaults.forEach((defLayer) => {
+        const existingIndex = currentLayers.findIndex(
+          (l) => l.id === defLayer.id
+        );
+
+        if (existingIndex === -1) {
+          // Missing: Add it
+          currentLayers.push(defLayer);
+          hasChanges = true;
+        } else {
+          // Exists: Enforce locked status and sortOrder for restricted layers
+          const existing = currentLayers[existingIndex];
+          const isRestricted =
+            defLayer.id === "background" ||
+            defLayer.id === "grid" ||
+            defLayer.id === "fog";
+
+          if (isRestricted) {
+            if (
+              existing.sortOrder !== defLayer.sortOrder ||
+              existing.locked !== defLayer.locked
+            ) {
+              currentLayers[existingIndex] = {
+                ...existing,
+                sortOrder: defLayer.sortOrder,
+                locked: defLayer.locked,
+              };
+              hasChanges = true;
+            }
+          }
+        }
+      });
+
+      if (hasChanges) {
+        updateSettings({ layers: currentLayers });
+      }
     }
   }, [synced, settings.layers, updateSettings]);
 
@@ -143,12 +205,10 @@ export function BattlemapEditor({ fileId, doc }: BattlemapEditorProps) {
     viewport,
     doc,
     fogArray,
-    tokensArray,
     textsArray,
     drawingsArray,
     settings,
     previewGraphicsRef,
-    layerContainersRef,
   });
 
   // ...
@@ -178,6 +238,24 @@ export function BattlemapEditor({ fileId, doc }: BattlemapEditorProps) {
   useFogRenderer({ fogShapes, layerContainersRef, app, isReady, settings });
   useDrawingRenderer({ drawings, layerContainersRef, isReady });
   useGridRenderer({ settings, layerContainersRef, app, isReady });
+
+  // Wall interactions and rendering
+  useWallInteractions({
+    app,
+    viewport,
+    doc,
+    wallsArray,
+    settings,
+    previewGraphicsRef,
+    setContextMenu,
+  });
+
+  useWallRenderer({
+    walls,
+    layerContainersRef,
+    isReady,
+    layersCheck: settings.layers?.length || 0,
+  });
 
   // UI Handlers
   const handleSettingsChange = useCallback(
@@ -212,6 +290,13 @@ export function BattlemapEditor({ fileId, doc }: BattlemapEditorProps) {
   const handleBackgroundClear = useCallback(() => {
     handleSettingsChange({ backgroundImage: undefined });
   }, [handleSettingsChange]);
+
+  const handleSetActiveLayer = useCallback(
+    (id: string) => {
+      handleSettingsChange({ activeLayerId: id });
+    },
+    [handleSettingsChange]
+  );
 
   // NOTE: Drag & Drop Logic for Tokens (Dropping from Sidebar to Canvas)
   // This was in the original onDrop. Since useBattlemapInteractions handles canvas events,
@@ -306,7 +391,7 @@ export function BattlemapEditor({ fileId, doc }: BattlemapEditorProps) {
         layers={settings.layers || []}
         activeLayerId={settings.activeLayerId || ""}
         onUpdateLayers={(layers) => updateSettings({ layers })}
-        onSetActiveLayer={(id) => updateSettings({ activeLayerId: id })}
+        onSetActiveLayer={handleSetActiveLayer}
       />
 
       <BattlemapToolbar
@@ -320,6 +405,8 @@ export function BattlemapEditor({ fileId, doc }: BattlemapEditorProps) {
         onFogToolChange={setFogTool}
         brushSize={brushSize}
         onBrushSizeChange={setBrushSize}
+        wallTool={wallTool}
+        onWallToolChange={setWallTool}
       />
 
       {contextMenu && (
