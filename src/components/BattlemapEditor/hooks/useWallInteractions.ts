@@ -892,9 +892,8 @@ export function useWallInteractions({
         canvasY = (e as MouseEvent).offsetY;
       } else {
         // TouchEvent or fallback
-        const te = e as TouchEvent | PointerEvent;
-        const clientX = te.clientX ?? te.touches?.[0]?.clientX ?? 0;
-        const clientY = te.clientY ?? te.touches?.[0]?.clientY ?? 0;
+        const clientX = "clientX" in e ? e.clientX : e.touches[0].clientX;
+        const clientY = "clientY" in e ? e.clientY : e.touches[0].clientY;
         const canvas = app?.canvas as HTMLCanvasElement;
         const rect = canvas?.getBoundingClientRect();
         canvasX = clientX - (rect?.left || 0);
