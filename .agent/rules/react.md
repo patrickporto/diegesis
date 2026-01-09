@@ -28,8 +28,3 @@ Follow these rules when you write code:
 - Use error boundaries for unexpected errors: Implement error boundaries using error.tsx and global-error.tsx files to handle unexpected errors and provide a fallback UI.
 - Define input schemas using Zod for robust type checking and validation
 - - Handle errors gracefully and return appropriate responses.
-
-## Linting
-- Always execute bun run lint after making changes and resolve any identified issues.
-- Run bun run build:ci
-- Always execute tsc && vite build  after making changes and resolve any identified issues.

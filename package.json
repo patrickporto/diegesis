@@ -27,7 +27,10 @@
     "test:ci": "vitest run --coverage",
     "serve": "vite preview",
     "prepare": "husky install && rm -rf .git/hooks && ln -s ../.husky .git/hooks",
-    "lint": "eslint --cache --fix ."
+    "lint": "eslint . --ext .ts,.tsx",
+    "lint:fix": "eslint . --ext .ts,.tsx --fix",
+    "type-check": "tsc --noEmit",
+    "check": "npm run lint && npm run type-check"
   },
   "dependencies": {
     "@blocknote/core": "^0.45.0",
