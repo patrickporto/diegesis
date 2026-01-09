@@ -128,7 +128,7 @@ export function BattlemapEditor({ fileId, doc }: BattlemapEditorProps) {
         visible: true,
         locked: true,
         opacity: 1,
-        sortOrder: 100,
+        sortOrder: 1,
       },
     ];
 

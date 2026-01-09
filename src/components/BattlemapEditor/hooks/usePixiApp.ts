@@ -77,14 +77,48 @@ export function usePixiApp({ containerRef, fileId }: UsePixiAppProps) {
         .decelerate()
         .clampZoom({ minScale: 0.8, maxScale: 4 });
 
+      // Custom wheel handler for better touchpad support
+      // We use 'capture: true' to intercept events BEFORE Pixi/Viewport handles them
+      const handleWheel = (e: WheelEvent) => {
+        if (!viewport) return;
+
+        // Heuristic to detect touchpad vs mouse wheel
+        const isTouchpad = e.deltaMode === 0;
+        const isZoom = e.ctrlKey || !isTouchpad;
+
+        if (isZoom) {
+          // It is a zoom event (Mouse Wheel or Ctrl+Touchpad).
+          // We let this event propagate to pixi-viewport's native .wheel() plugin.
+          // This ensures the zoom feels "native" and performant (smoothness, etc).
+          return;
+        }
+
+        // It is a Pan event (Touchpad scroll).
+        // We STOP propagation so pixi-viewport doesn't see it (and doesn't zoom).
+        e.stopImmediatePropagation();
+        e.preventDefault();
+
+        // Manual Pan logic
+        viewport.moveCorner(
+          viewport.left + e.deltaX / viewport.scale.x,
+          viewport.top + e.deltaY / viewport.scale.y
+        );
+      };
+
+      // Listener with capture: true to intercept before Pixi
+      app.canvas.addEventListener("wheel", handleWheel, {
+        passive: false,
+        capture: true,
+      });
+
       app.stage.addChild(viewport);
       viewportRef.current = viewport;
 
       // Handle resize
       const handleResize = () => {
-        if (app && container) {
+        if (app && container && viewport) {
           app.renderer.resize(container.clientWidth, container.clientHeight);
-          viewport?.resize(container.clientWidth, container.clientHeight);
+          viewport.resize(container.clientWidth, container.clientHeight);
         }
       };
 
@@ -110,6 +144,9 @@ export function usePixiApp({ containerRef, fileId }: UsePixiAppProps) {
 
       return () => {
         window.removeEventListener("resize", handleResize);
+        app?.canvas.removeEventListener("wheel", handleWheel, {
+          capture: true,
+        });
       };
     };
 
