@@ -5,6 +5,7 @@ import {
   BattlemapSettings,
   DEFAULT_SETTINGS,
   DrawingPath,
+  DrawingType,
   FogShape,
   FogToolMode,
   FogToolType,
@@ -21,6 +22,9 @@ interface BattlemapState {
   previousTool: ToolType | null; // For temporary tool changes (Space, Middle Click)
   fogMode: FogToolMode;
   fogTool: FogToolType;
+  drawTool: DrawingType;
+  editingItemId: string | null;
+  selectedDrawingIds: string[];
   wallTool: WallToolType;
   brushSize: number;
   isDrawing: boolean;
@@ -28,6 +32,7 @@ interface BattlemapState {
   selectedSegmentIds: string[];
   selectedTokenIds: string[];
   isDraggingToken: boolean;
+  isDraggingDrawing: boolean;
 
   // Current drawing path (transient, not synced)
   currentPath: number[];
@@ -46,6 +51,10 @@ interface BattlemapState {
   disableTemporaryPan: () => void; // Restore previous tool
   setFogMode: (mode: FogToolMode) => void;
   setFogTool: (tool: FogToolType) => void;
+  setDrawTool: (tool: DrawingType) => void;
+  setEditingItemId: (id: string | null) => void; // New: Action to set editingItemId
+  setSelectedDrawingIds: (ids: string[]) => void;
+  setIsDraggingDrawing: (dragging: boolean) => void;
   setWallTool: (tool: WallToolType) => void;
   setBrushSize: (size: number) => void;
   setIsDrawing: (drawing: boolean) => void;
@@ -79,6 +88,9 @@ export const useBattlemapStore = create<BattlemapState>((set) => ({
   previousTool: null,
   fogMode: "hide",
   fogTool: "brush",
+  drawTool: "brush",
+  editingItemId: null,
+  selectedDrawingIds: [], // New
   wallTool: "polygon",
   brushSize: 50,
   isDrawing: false,
@@ -86,6 +98,7 @@ export const useBattlemapStore = create<BattlemapState>((set) => ({
   selectedSegmentIds: [],
   selectedTokenIds: [],
   isDraggingToken: false,
+  isDraggingDrawing: false, // New
   currentPath: [],
 
   // Initial State - Synced
@@ -111,9 +124,14 @@ export const useBattlemapStore = create<BattlemapState>((set) => ({
     })),
   setFogMode: (mode) => set({ fogMode: mode }),
   setFogTool: (tool) => set({ fogTool: tool }),
+  setDrawTool: (tool) => set({ drawTool: tool }),
+  setEditingItemId: (id) => set({ editingItemId: id }),
+  setSelectedDrawingIds: (ids) => set({ selectedDrawingIds: ids }),
   setWallTool: (tool) => set({ wallTool: tool }),
   setBrushSize: (size) => set({ brushSize: size }),
   setIsDrawing: (drawing) => set({ isDrawing: drawing }),
+  setIsDraggingDrawing: (dragging: boolean) =>
+    set({ isDraggingDrawing: dragging }),
   setCurrentPath: (path) => set({ currentPath: path }),
   appendToCurrentPath: (x, y) =>
     set((state) => ({ currentPath: [...state.currentPath, x, y] })),
@@ -144,6 +162,7 @@ export const useBattlemapStore = create<BattlemapState>((set) => ({
 export const useActiveTool = () => useBattlemapStore((s) => s.activeTool);
 export const useFogMode = () => useBattlemapStore((s) => s.fogMode);
 export const useFogTool = () => useBattlemapStore((s) => s.fogTool);
+export const useDrawTool = () => useBattlemapStore((s) => s.drawTool);
 export const useWallTool = () => useBattlemapStore((s) => s.wallTool);
 export const useBrushSize = () => useBattlemapStore((s) => s.brushSize);
 export const useIsDrawing = () => useBattlemapStore((s) => s.isDrawing);
@@ -159,3 +178,7 @@ export const useSelectedTokenIds = () =>
   useBattlemapStore((s) => s.selectedTokenIds);
 export const useIsDraggingToken = () =>
   useBattlemapStore((s) => s.isDraggingToken);
+export const useSelectedDrawingIds = () =>
+  useBattlemapStore((s) => s.selectedDrawingIds);
+export const useIsDraggingDrawing = () =>
+  useBattlemapStore((s) => s.isDraggingDrawing);

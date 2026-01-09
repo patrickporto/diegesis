@@ -19,8 +19,20 @@ import { useGridRenderer } from "./hooks/useGridRenderer";
 import { usePixiApp } from "./hooks/usePixiApp";
 import { useTokenRenderer } from "./hooks/useTokenRenderer";
 import { useWallInteractions } from "./hooks/useWallInteractions";
+
+interface LegacyText {
+  id: string;
+  x: number;
+  y: number;
+  content?: string;
+  fontSize?: number;
+  fontFamily?: string;
+}
 import { useWallRenderer } from "./hooks/useWallRenderer";
+import { PropertyEditor } from "./PropertyEditor";
+import { TextInputOverlay } from "./TextInputOverlay";
 import { TokenManagerSidebar } from "./TokenManagerSidebar";
+import { DrawingShape } from "./types";
 import { BattlemapSettings, ContextMenuAction, Layer, Token } from "./types";
 
 interface BattlemapEditorProps {
@@ -47,6 +59,8 @@ export function BattlemapEditor({ fileId, doc }: BattlemapEditorProps) {
     setFogMode,
     fogTool,
     setFogTool,
+    drawTool,
+    setDrawTool,
     brushSize,
     setBrushSize,
     wallTool,
@@ -71,7 +85,6 @@ export function BattlemapEditor({ fileId, doc }: BattlemapEditorProps) {
     tokensArray,
     drawings,
     drawingsArray,
-    textsArray,
     fogShapes,
     fogArray,
     walls,
@@ -95,40 +108,49 @@ export function BattlemapEditor({ fileId, doc }: BattlemapEditorProps) {
         sortOrder: 0,
       },
       {
-        id: "obstacles",
-        name: "Walls & Obstacles",
-        type: "obstacles",
+        id: "grid",
+        name: "Grid",
+        type: "grid",
         visible: true,
-        locked: false,
+        locked: true,
         opacity: 1,
-        sortOrder: 25, // Above tokens (2), below fog (50)
+        sortOrder: 999, // On top
       },
       {
         id: "fog",
         name: "Fog of War",
         type: "fog",
-        visible: true,
-        locked: true,
+        visible: true, // Visible (applied) by default
+        locked: true, // System layer
         opacity: 1,
-        sortOrder: 50,
+        sortOrder: 1000, // Topmost overlay
       },
       {
         id: "tokens",
         name: "Tokens",
-        type: "tokens",
+        type: "token",
         visible: true,
         locked: false,
         opacity: 1,
-        sortOrder: 2,
+        sortOrder: 50,
       },
       {
-        id: "grid",
-        name: "Grid",
+        id: "walls",
+        name: "Walls",
+        type: "wall",
+        visible: true,
+        locked: false,
+        opacity: 1,
+        sortOrder: 60,
+      },
+      {
+        id: "map",
+        name: "Map",
         type: "map",
         visible: true,
-        locked: true,
+        locked: false,
         opacity: 1,
-        sortOrder: 1,
+        sortOrder: 10,
       },
     ];
 
@@ -136,12 +158,10 @@ export function BattlemapEditor({ fileId, doc }: BattlemapEditorProps) {
     if (!settings.layers || settings.layers.length === 0) {
       updateSettings({ layers: defineDefaults(), activeLayerId: "tokens" });
     } else {
-      // Migration & Enforcement: Ensure all restricted layers exist and have correct props
+      const defaults = defineDefaults();
       const currentLayers = [...settings.layers];
       let hasChanges = false;
-      const defaults = defineDefaults();
 
-      // check for missing layers
       defaults.forEach((defLayer) => {
         const existingIndex = currentLayers.findIndex(
           (l) => l.id === defLayer.id
@@ -176,10 +196,39 @@ export function BattlemapEditor({ fileId, doc }: BattlemapEditorProps) {
       });
 
       if (hasChanges) {
-        updateSettings({ layers: currentLayers });
+        updateSettings({
+          layers: currentLayers,
+          activeLayerId: currentLayers[0].id,
+        });
       }
     }
   }, [synced, settings.layers, updateSettings]);
+
+  // Migration: Transfer legacy Texts to Drawings
+  useEffect(() => {
+    const textsArray = doc.getArray<LegacyText>("texts");
+    if (textsArray.length > 0) {
+      doc.transact(() => {
+        const items = textsArray.toArray();
+        const newDrawings = items.map(
+          (t): DrawingShape => ({
+            id: t.id,
+            type: "text" as const,
+            x: t.x,
+            y: t.y,
+            content: t.content || "",
+            fontSize: t.fontSize || 24,
+            fontFamily: t.fontFamily || "Arial",
+            strokeColor: "#ffffff",
+            layer: "map",
+          })
+        );
+        drawingsArray.push(newDrawings);
+        // Clear old array
+        textsArray.delete(0, textsArray.length);
+      });
+    }
+  }, [doc, drawingsArray]);
 
   // 3. Layers
   const { layerContainersRef } = useBattlemapLayers({
@@ -205,7 +254,6 @@ export function BattlemapEditor({ fileId, doc }: BattlemapEditorProps) {
     viewport,
     doc,
     fogArray,
-    textsArray,
     drawingsArray,
     settings,
     previewGraphicsRef,
@@ -404,11 +452,22 @@ export function BattlemapEditor({ fileId, doc }: BattlemapEditorProps) {
         onFogModeChange={setFogMode}
         fogTool={fogTool}
         onFogToolChange={setFogTool}
+        drawTool={drawTool}
+        onDrawToolChange={setDrawTool}
         brushSize={brushSize}
         onBrushSizeChange={setBrushSize}
         wallTool={wallTool}
         onWallToolChange={setWallTool}
       />
+
+      <TextInputOverlay
+        viewport={viewport}
+        drawings={drawings}
+        drawingsArray={drawingsArray}
+        doc={doc}
+      />
+
+      <PropertyEditor drawingsArray={drawingsArray} />
 
       {contextMenu && (
         <ContextMenu

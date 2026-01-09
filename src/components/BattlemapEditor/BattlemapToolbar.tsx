@@ -1,6 +1,12 @@
 import React from "react";
 
-import { FogToolMode, FogToolType, ToolType, WallToolType } from "./types";
+import {
+  DrawingType,
+  FogToolMode,
+  FogToolType,
+  ToolType,
+  WallToolType,
+} from "./types";
 
 interface BattlemapToolbarProps {
   activeTool: ToolType;
@@ -19,6 +25,10 @@ interface BattlemapToolbarProps {
   // Wall Specific
   wallTool?: WallToolType;
   onWallToolChange?: (tool: WallToolType) => void;
+
+  // Draw Specific
+  drawTool?: DrawingType;
+  onDrawToolChange?: (tool: DrawingType) => void;
 }
 
 const tools: { id: ToolType; label: string; icon: React.ReactNode }[] = [
@@ -60,25 +70,7 @@ const tools: { id: ToolType; label: string; icon: React.ReactNode }[] = [
       </svg>
     ),
   },
-  {
-    id: "text",
-    label: "Add Text",
-    icon: (
-      <svg
-        className="w-5 h-5"
-        fill="none"
-        viewBox="0 0 24 24"
-        stroke="currentColor"
-      >
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          strokeWidth={2}
-          d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-        />
-      </svg>
-    ),
-  },
+
   {
     id: "draw",
     label: "Draw",
@@ -324,6 +316,106 @@ const wallSubTools: {
   },
 ];
 
+const drawSubTools: {
+  id: DrawingType;
+  label: string;
+  icon: React.ReactNode;
+}[] = [
+  {
+    id: "brush",
+    label: "Brush",
+    icon: (
+      <svg
+        className="w-4 h-4"
+        fill="none"
+        viewBox="0 0 24 24"
+        stroke="currentColor"
+      >
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth={2}
+          d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
+        />
+      </svg>
+    ),
+  },
+  {
+    id: "text",
+    label: "Text",
+    icon: (
+      <svg
+        className="w-4 h-4"
+        fill="none"
+        viewBox="0 0 24 24"
+        stroke="currentColor"
+      >
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth={2}
+          d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+        />
+      </svg>
+    ),
+  },
+  {
+    id: "rect",
+    label: "Rectangle",
+    icon: (
+      <svg
+        className="w-4 h-4"
+        fill="none"
+        viewBox="0 0 24 24"
+        stroke="currentColor"
+      >
+        <rect
+          x="3"
+          y="3"
+          width="18"
+          height="18"
+          rx="2"
+          ry="2"
+          strokeWidth={2}
+        />
+      </svg>
+    ),
+  },
+  {
+    id: "ellipse",
+    label: "Ellipse",
+    icon: (
+      <svg
+        className="w-4 h-4"
+        fill="none"
+        viewBox="0 0 24 24"
+        stroke="currentColor"
+      >
+        <ellipse cx="12" cy="12" rx="9" ry="6" strokeWidth={2} />
+      </svg>
+    ),
+  },
+  {
+    id: "polygon",
+    label: "Polygon",
+    icon: (
+      <svg
+        className="w-4 h-4"
+        fill="none"
+        viewBox="0 0 24 24"
+        stroke="currentColor"
+      >
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth={2}
+          d="M12 2l9 17H3l9-17z"
+        />
+      </svg>
+    ),
+  },
+];
+
 export function BattlemapToolbar({
   activeTool,
   onToolChange,
@@ -337,9 +429,41 @@ export function BattlemapToolbar({
   onBrushSizeChange,
   wallTool,
   onWallToolChange,
+  drawTool,
+  onDrawToolChange,
 }: BattlemapToolbarProps) {
   return (
     <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-50 flex flex-col items-center gap-2">
+      {/* Draw Sub-Toolbar */}
+      {activeTool === "draw" && (
+        <div className="flex items-center gap-2 px-3 py-2 bg-slate-800/90 backdrop-blur-lg border border-slate-700 rounded-xl shadow-xl animate-fade-in-up">
+          <div className="flex gap-1">
+            {drawSubTools.map((t) => (
+              <button
+                key={t.id}
+                onClick={() => onDrawToolChange?.(t.id)}
+                title={t.label}
+                className={`p-1.5 rounded-md transition-colors ${
+                  drawTool === t.id
+                    ? "bg-emerald-600 text-white"
+                    : "text-slate-400 hover:bg-slate-700 hover:text-slate-200"
+                }`}
+              >
+                {t.icon}
+              </button>
+            ))}
+          </div>
+
+          {(drawTool === "brush" || drawTool === "text") && (
+            // Placeholder for text settings or brush size if distinct from fog brush size
+            // For now reusing brushSize or generic settings could go here
+            <>
+              <div className="w-px h-5 bg-slate-700 mx-1" />
+              {/* Add dedicated settings later */}
+            </>
+          )}
+        </div>
+      )}
       {/* Fog Sub-Toolbar */}
       {activeTool === "fog" && (
         <div className="flex items-center gap-2 px-3 py-2 bg-slate-800/90 backdrop-blur-lg border border-slate-700 rounded-xl shadow-xl animate-fade-in-up">

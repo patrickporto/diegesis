@@ -12,7 +12,7 @@ export type GridColor = "black" | "white" | "orange";
 export interface Layer {
   id: string;
   name: string;
-  type: "tokens" | "map" | "fog" | "obstacles";
+  type: "tokens" | "map" | "fog" | "obstacles" | "grid" | "wall" | "token";
   visible: boolean;
   locked: boolean;
   opacity: number;
@@ -57,13 +57,53 @@ export interface TextAnnotation {
   layer: string;
 }
 
-export interface DrawingPath {
+export type DrawingType = "brush" | "text" | "rect" | "ellipse" | "polygon";
+
+export interface DrawingBase {
   id: string;
-  points: number[]; // [x1, y1, x2, y2, ...]
-  color: string;
-  width: number;
+  type: DrawingType;
   layer: string;
+  x: number; // For shapes/text: start/top-left. For brush: 0 (points are absolute) or offset.
+  y: number;
+  rotation?: number;
+  strokeColor?: string;
+  strokeWidth?: number;
+  fillColor?: string;
+  fillAlpha?: number;
 }
+
+export interface DrawingBrush extends DrawingBase {
+  type: "brush";
+  points: number[]; // Absolute points
+}
+
+export interface DrawingText extends DrawingBase {
+  type: "text";
+  content: string;
+  fontSize: number;
+  fontFamily: string;
+  width?: number; // max width
+}
+
+export interface DrawingShapeGeometry extends DrawingBase {
+  type: "rect" | "ellipse";
+  width: number;
+  height: number;
+}
+
+export interface DrawingPolygon extends DrawingBase {
+  type: "polygon";
+  points: number[]; // Relative to x,y or Absolute? Let's use Absolute for consistency with Brush for now
+}
+
+export type DrawingShape =
+  | DrawingBrush
+  | DrawingText
+  | DrawingShapeGeometry
+  | DrawingPolygon;
+
+// Alias for backward compatibility if needed, or we just update usages
+export type DrawingPath = DrawingShape; // Temporary alias to avoid breaking everything immediately
 
 export type ToolType =
   | "select"
