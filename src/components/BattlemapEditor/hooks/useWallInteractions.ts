@@ -612,27 +612,16 @@ export function useWallInteractions({
   // Snap coordinate to grid or nearby endpoint
   const snapCoordinate = useCallback(
     (x: number, y: number, forceNoSnap = false): Point => {
-      // Alt disables ALL snapping (for precise placement near endpoints)
-      // shiftKey often used for angle constraint, so we leave it free or use it later
-      if (forceNoSnap) {
+      // Toggle logic: Alt inhibits ALL snapping
+      if (forceNoSnap || isAltPressedRef.current) {
         return { x, y };
       }
-
-      // Check for Alt via window listener or ref?
-      // We only have isCtrlPressedRef. We need isAltPressedRef.
-      // Let's implement isAltPressed check quickly in the key handlers or just use the event if passed?
-      // snapCoordinate doesn't receive the event, it uses Refs.
-      // We need to add isAltPressedRef.
 
       const gridSnapEnabled = isCtrlPressedRef.current
         ? !settings.snapToGrid
         : settings.snapToGrid;
 
-      // Endpoint snap always on unless Alt is pressed (Need to add Alt ref)
-      // For now, let's assume Ctrl affects GRID.
-      // And we need a way to disable Endpoint.
-      // Let's rely on isAltPressedRef (need to add it)
-
+      // Endpoint snap always on unless Alt is pressed
       const disableEndpointSnap = isAltPressedRef.current;
 
       if (!disableEndpointSnap) {
@@ -1775,15 +1764,7 @@ export function useWallInteractions({
       }
       // Polygon logic now handled via DoubleClick/state, pointerUp just ends handle drag
     },
-    [
-      activeTool,
-      viewport,
-      snapCoordinate,
-      doc,
-      wallsArray,
-      app,
-      settings.activeLayerId,
-    ]
+    [activeTool, viewport, snapCoordinate, doc, wallsArray, app, settings]
   );
 
   // Escape to cancel drawing
@@ -1851,7 +1832,7 @@ export function useWallInteractions({
     isDrawing,
     doc,
     wallsArray,
-    settings.activeLayerId,
+    settings,
     setIsDrawing,
     clearCurrentPath,
     nodesToSegments,
@@ -1961,15 +1942,7 @@ export function useWallInteractions({
           wallPreviewGraphicsRef.current.clear();
       }
     },
-    [
-      viewport,
-      app,
-      wallsArray,
-      doc,
-      activeTool,
-      nodesToSegments,
-      settings.activeLayerId,
-    ]
+    [viewport, app, wallsArray, doc, activeTool, nodesToSegments, settings]
   );
 
   // Context Menu Handler

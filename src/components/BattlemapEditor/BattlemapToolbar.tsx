@@ -554,27 +554,6 @@ export function BattlemapToolbar({
               </button>
             ))}
           </div>
-
-          <div className="w-px h-5 bg-slate-700 mx-1" />
-
-          {/* Snap Indicator */}
-          <div className="flex items-center gap-1.5 px-2 py-1 bg-slate-900/50 rounded-md border border-slate-700">
-            <svg
-              className="w-3.5 h-3.5 text-amber-400"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M13 10V3L4 14h7v7l9-11h-7z"
-              />
-            </svg>
-            <span className="text-xs text-slate-400">Snap: ON</span>
-            <span className="text-xs text-slate-500">(Ctrl to disable)</span>
-          </div>
         </div>
       )}
 

@@ -144,10 +144,10 @@ export function useWallRenderer({
   useEffect(() => {
     if (!isReady) return;
 
-    // Find the obstacles layer container (walls go on obstacles layer)
-    const obstaclesContainer = layerContainersRef.current.get("obstacles");
-    if (!obstaclesContainer) {
-      console.warn("WallRenderer: Obstacles container not found!");
+    // Find the walls layer container
+    const wallsContainer = layerContainersRef.current.get("walls");
+    if (!wallsContainer) {
+      console.warn("WallRenderer: Walls container not found!");
       return;
     }
 
@@ -156,7 +156,7 @@ export function useWallRenderer({
       const g = new Graphics();
       g.label = "walls";
       g.zIndex = 10; // Above background, below tokens
-      obstaclesContainer.addChild(g);
+      wallsContainer.addChild(g);
       wallGraphicsRef.current = g;
     }
 
