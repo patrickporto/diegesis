@@ -1,5 +1,5 @@
 ---
-description:
+trigger: always_on
 ---
 
 Run npm run lint:fix and apply all safe fixes.
