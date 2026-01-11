@@ -11,8 +11,6 @@ import {
 interface BattlemapToolbarProps {
   activeTool: ToolType;
   onToolChange: (tool: ToolType) => void;
-  onSettingsClick: () => void;
-  onTokensClick: () => void;
 
   // Fog Specific
   fogMode?: FogToolMode;
@@ -419,14 +417,10 @@ const drawSubTools: {
 export function BattlemapToolbar({
   activeTool,
   onToolChange,
-  onSettingsClick,
-  onTokensClick,
   fogMode,
   onFogModeChange,
   fogTool,
   onFogToolChange,
-  brushSize,
-  onBrushSizeChange,
   wallTool,
   onWallToolChange,
   drawTool,
@@ -467,33 +461,6 @@ export function BattlemapToolbar({
       {/* Fog Sub-Toolbar */}
       {activeTool === "fog" && (
         <div className="flex items-center gap-2 px-3 py-2 bg-slate-800/90 backdrop-blur-lg border border-slate-700 rounded-xl shadow-xl animate-fade-in-up">
-          {/* Mode Toggle */}
-          <div className="flex bg-slate-900 rounded-lg p-0.5 border border-slate-700">
-            <button
-              onClick={() => onFogModeChange?.("hide")}
-              className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${
-                fogMode === "hide"
-                  ? "bg-slate-700 text-white shadow-sm"
-                  : "text-slate-400 hover:text-slate-200"
-              }`}
-            >
-              Hide (Add)
-            </button>
-            <button
-              onClick={() => onFogModeChange?.("reveal")}
-              className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${
-                fogMode === "reveal"
-                  ? "bg-slate-700 text-white shadow-sm"
-                  : "text-slate-400 hover:text-slate-200"
-              }`}
-            >
-              Reveal (Sub)
-            </button>
-          </div>
-
-          <div className="w-px h-5 bg-slate-700 mx-1" />
-
-          {/* Sub-tools */}
           <div className="flex gap-1">
             {fogSubTools.map((t) => (
               <button
@@ -502,7 +469,7 @@ export function BattlemapToolbar({
                 title={t.label}
                 className={`p-1.5 rounded-md transition-colors ${
                   fogTool === t.id
-                    ? "bg-sky-600 text-white"
+                    ? "bg-indigo-600 text-white"
                     : "text-slate-400 hover:bg-slate-700 hover:text-slate-200"
                 }`}
               >
@@ -511,26 +478,26 @@ export function BattlemapToolbar({
             ))}
           </div>
 
-          {/* Brush Size Slider (Only for brush) */}
-          {fogTool === "brush" && (
-            <>
-              <div className="w-px h-5 bg-slate-700 mx-1" />
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-slate-400 font-mono w-4">
-                  {brushSize}
-                </span>
-                <input
-                  type="range"
-                  min="10"
-                  max="200"
-                  step="10"
-                  value={brushSize}
-                  onChange={(e) => onBrushSizeChange?.(Number(e.target.value))}
-                  className="w-20 h-1 bg-slate-600 rounded-lg appearance-none cursor-pointer accent-sky-500"
-                />
-              </div>
-            </>
-          )}
+          <div className="w-px h-5 bg-slate-700 mx-1" />
+
+          {/* Mode Toggle */}
+          <div className="flex bg-slate-900 rounded-lg p-0.5 border border-slate-700">
+            {(["hide", "reveal"] as const).map((m) => (
+              <button
+                key={m}
+                onClick={() => onFogModeChange?.(m)}
+                className={`px-2 py-1 text-[10px] font-bold uppercase rounded-md transition-colors ${
+                  fogMode === m
+                    ? m === "hide"
+                      ? "bg-slate-700 text-white"
+                      : "bg-sky-600 text-white"
+                    : "text-slate-500 hover:text-slate-300"
+                }`}
+              >
+                {m}
+              </button>
+            ))}
+          </div>
         </div>
       )}
 
@@ -557,7 +524,6 @@ export function BattlemapToolbar({
         </div>
       )}
 
-      {/* Main Toolbar */}
       <div className="flex items-center gap-1 px-2 py-1.5 bg-white/90 backdrop-blur-lg border border-slate-200 rounded-xl shadow-xl">
         {tools.map((tool) => (
           <button
@@ -573,54 +539,6 @@ export function BattlemapToolbar({
             {tool.icon}
           </button>
         ))}
-
-        <div className="w-px h-6 bg-slate-200 mx-1" />
-
-        <button
-          onClick={onTokensClick}
-          title="Tokens"
-          className="p-2.5 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-all"
-        >
-          <svg
-            className="w-5 h-5"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
-            />
-          </svg>
-        </button>
-
-        <button
-          onClick={onSettingsClick}
-          title="Settings"
-          className="p-2.5 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-all"
-        >
-          <svg
-            className="w-5 h-5"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
-            />
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-            />
-          </svg>
-        </button>
       </div>
     </div>
   );

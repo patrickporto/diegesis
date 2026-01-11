@@ -5,6 +5,7 @@ import { uuidv7 } from "uuidv7";
 import * as Y from "yjs";
 
 import { useBattlemapStore } from "../../../stores/useBattlemapStore";
+import { GridRenderer } from "../GridRenderer";
 import {
   BattlemapSettings,
   ContextMenuAction,
@@ -637,13 +638,24 @@ export function useWallInteractions({
       }
 
       // Snap to grid
-      const s = settings.gridCellSize;
-      return {
-        x: Math.round(x / s) * s,
-        y: Math.round(y / s) * s,
-      };
+      const snapped = GridRenderer.snapToGrid(
+        x,
+        y,
+        settings.gridType,
+        settings.gridCellSize,
+        settings.gridOffsetX || 0,
+        settings.gridOffsetY || 0
+      );
+      return snapped;
     },
-    [settings.snapToGrid, settings.gridCellSize, walls]
+    [
+      settings.snapToGrid,
+      settings.gridType,
+      settings.gridCellSize,
+      settings.gridOffsetX,
+      settings.gridOffsetY,
+      walls,
+    ]
   );
 
   // State for polygon bezier drawing

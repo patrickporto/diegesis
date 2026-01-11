@@ -1,4 +1,4 @@
-import { Container, Graphics, Text, TextStyle } from "pixi.js";
+import { BlurFilter, Container, Graphics, Text, TextStyle } from "pixi.js";
 import { useEffect, useRef } from "react";
 
 import { useBattlemapStore } from "../../../stores/useBattlemapStore";
@@ -52,6 +52,16 @@ export function useDrawingRenderer({
       g.clear();
       g.removeChildren();
 
+      // Apply shared properties
+      g.alpha = drawing.opacity ?? 1;
+      if (drawing.blur && drawing.blur > 0) {
+        const blurFilter = new BlurFilter();
+        blurFilter.blur = drawing.blur;
+        g.filters = [blurFilter];
+      } else {
+        g.filters = null;
+      }
+
       const isSelected = selectedDrawingIds.includes(drawing.id);
 
       if (drawing.type === "brush" && drawing.points.length >= 4) {
@@ -59,10 +69,10 @@ export function useDrawingRenderer({
         for (let i = 2; i < drawing.points.length; i += 2) {
           g.lineTo(drawing.points[i], drawing.points[i + 1]);
         }
+
         g.stroke({
           width: drawing.strokeWidth || 2,
           color: drawing.strokeColor || 0xff0000,
-          alpha: drawing.strokeColor ? 1 : 0,
           cap: "round",
           join: "round",
         });
@@ -122,10 +132,6 @@ export function useDrawingRenderer({
         text.x = drawing.x;
         text.y = drawing.y;
         g.addChild(text);
-
-        // For text, we can use the g bounds for selection
-        // g itself has no content if we only add child?
-        // We might want to draw a transparent rect to catch hits or show selection
       }
 
       // Selection Highlight

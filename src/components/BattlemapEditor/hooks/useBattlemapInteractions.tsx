@@ -1,16 +1,21 @@
-import { Application, Graphics } from "pixi.js";
+import { Application, BlurFilter, Graphics } from "pixi.js";
 import { Viewport } from "pixi-viewport";
 import { useCallback, useEffect, useRef } from "react";
 import { uuidv7 } from "uuidv7";
 import * as Y from "yjs";
 
 import { useBattlemapStore } from "../../../stores/useBattlemapStore";
+import { calculateFogFill } from "../../../utils/floodFill";
 import { GridRenderer } from "../GridRenderer";
 import {
   BattlemapSettings,
+  ContextMenuAction,
   DrawingPath,
   DrawingShape,
+  FogRoom,
   FogShape,
+  Wall,
+  WallSegment,
 } from "../types";
 
 const FOG_SIZE = 3000;
@@ -21,8 +26,15 @@ interface UseBattlemapInteractionsProps {
   doc: Y.Doc;
   fogArray: Y.Array<FogShape>;
   drawingsArray: Y.Array<DrawingPath>;
+  wallsArray: Y.Array<Wall>;
+  roomsArray: Y.Array<FogRoom>;
   settings: BattlemapSettings;
   previewGraphicsRef: React.MutableRefObject<Graphics | null>;
+  onOpenContextMenu: (
+    x: number,
+    y: number,
+    actions: ContextMenuAction[]
+  ) => void;
 }
 
 export function useBattlemapInteractions({
@@ -31,11 +43,15 @@ export function useBattlemapInteractions({
   doc,
   fogArray,
   drawingsArray,
+  wallsArray,
+  roomsArray,
   settings,
   previewGraphicsRef,
+  onOpenContextMenu,
 }: UseBattlemapInteractionsProps) {
   const isSpacePressedRef = useRef(false);
   const isMiddlePressedRef = useRef(false);
+  const isSelectButtonPressedRef = useRef(false);
   /* eslint-disable react-compiler/react-compiler */
   const middleDragStartRef = useRef<{ x: number; y: number } | null>(null);
   const resizeHandleRef = useRef<string | null>(null);
@@ -53,8 +69,9 @@ export function useBattlemapInteractions({
   const fogTool = useBattlemapStore((s) => s.fogTool);
   const drawTool = useBattlemapStore((s) => s.drawTool);
   const fogMode = useBattlemapStore((s) => s.fogMode);
-  const brushSize = useBattlemapStore((s) => s.brushSize); // Kept as it's used later
-  const isDrawing = useBattlemapStore((s) => s.isDrawing); // Kept as it's used later
+  const activeRoomId = useBattlemapStore((s) => s.activeRoomId);
+  const brushSize = useBattlemapStore((s) => s.brushSize);
+  const isDrawing = useBattlemapStore((s) => s.isDrawing);
   const setIsDrawing = useBattlemapStore((s) => s.setIsDrawing);
   const setCurrentPath = useBattlemapStore((s) => s.setCurrentPath);
   const appendToCurrentPath = useBattlemapStore((s) => s.appendToCurrentPath);
@@ -162,24 +179,31 @@ export function useBattlemapInteractions({
       if (!g) return;
 
       g.clear();
+      g.alpha = 1;
+      g.filters = null;
 
       if (activeTool === "select") {
         g.clear();
+        g.visible = false;
 
-        // Marquee Selection Preview
-        if (marqueeStartRef.current) {
-          const startX = marqueeStartRef.current.x;
-          const startY = marqueeStartRef.current.y;
-          // Use raw viewport local for end point (x,y passed to updatePreview are viewport local)
-          // normalize
-          const minX = Math.min(startX, x);
-          const minY = Math.min(startY, y);
-          const w = Math.abs(x - startX);
-          const h = Math.abs(y - startY);
+        // Marquee Selection Preview - only show when button pressed and no objects selected
+        if (marqueeStartRef.current && isSelectButtonPressedRef.current) {
+          const { selectedDrawingIds } = useBattlemapStore.getState();
+          if (selectedDrawingIds.length === 0) {
+            const startX = marqueeStartRef.current.x;
+            const startY = marqueeStartRef.current.y;
+            // Use raw viewport local for end point (x,y passed to updatePreview are viewport local)
+            // normalize
+            const minX = Math.min(startX, x);
+            const minY = Math.min(startY, y);
+            const w = Math.abs(x - startX);
+            const h = Math.abs(y - startY);
 
-          g.rect(minX, minY, w, h);
-          g.fill({ color: 0x00aaff, alpha: 0.2 });
-          g.stroke({ color: 0x00aaff, width: 1, alpha: 0.8 });
+            g.rect(minX, minY, w, h);
+            g.fill({ color: 0x00aaff, alpha: 0.2 });
+            g.stroke({ color: 0x00aaff, width: 1, alpha: 0.8 });
+            g.visible = true;
+          }
         }
         return;
       }
@@ -233,7 +257,9 @@ export function useBattlemapInteractions({
             x,
             y,
             settings.gridType,
-            settings.gridCellSize
+            settings.gridCellSize,
+            settings.gridOffsetX || 0,
+            settings.gridOffsetY || 0
           );
 
           if (shape) {
@@ -306,10 +332,29 @@ export function useBattlemapInteractions({
           }
         }
       } else if (activeTool === "draw") {
+        const {
+          strokeColor,
+          strokeWidth,
+          fillColor,
+          fillAlpha,
+          opacity,
+          blur,
+        } = useBattlemapStore.getState().drawingProps;
+
+        // Apply global properties to preview
+        g.alpha = opacity ?? 1;
+        if (blur && blur > 0) {
+          const blurFilter = new BlurFilter();
+          blurFilter.blur = blur;
+          g.filters = [blurFilter];
+        } else {
+          g.filters = null;
+        }
+
         if (drawTool === "brush") {
           // Brush Preview
-          g.circle(x, y, 2); // Small cursor
-          g.fill({ color: 0xff0000, alpha: 1 });
+          g.circle(x, y, (strokeWidth || 2) / 2);
+          g.fill({ color: strokeColor, alpha: 1 });
           if (isDrawing && currentPath.length >= 2) {
             g.moveTo(currentPath[0], currentPath[1]);
             for (let i = 2; i < currentPath.length; i += 2) {
@@ -317,8 +362,8 @@ export function useBattlemapInteractions({
             }
             g.lineTo(x, y);
             g.stroke({
-              color: 0xff0000,
-              width: 2,
+              color: strokeColor,
+              width: strokeWidth || 2,
               alpha: 1,
               cap: "round",
               join: "round",
@@ -333,8 +378,8 @@ export function useBattlemapInteractions({
             const rectW = Math.abs(x - startX);
             const rectH = Math.abs(y - startY);
             g.rect(rectX, rectY, rectW, rectH);
-            g.stroke({ color: 0xff0000, width: 2, alpha: 1 });
-            g.fill({ color: 0xffffff, alpha: 0.1 });
+            g.stroke({ color: strokeColor, width: strokeWidth || 2, alpha: 1 });
+            g.fill({ color: fillColor || 0xffffff, alpha: fillAlpha ?? 0.1 });
           }
         } else if (drawTool === "ellipse") {
           if (isDrawing) {
@@ -346,8 +391,8 @@ export function useBattlemapInteractions({
             const centerY = Math.min(startY, y) + height / 2;
 
             g.ellipse(centerX, centerY, width / 2, height / 2);
-            g.stroke({ color: 0xff0000, width: 2, alpha: 1 });
-            g.fill({ color: 0xffffff, alpha: 0.1 });
+            g.stroke({ color: strokeColor, width: strokeWidth || 2, alpha: 1 });
+            g.fill({ color: fillColor || 0xffffff, alpha: fillAlpha ?? 0.1 });
           }
         } else if (drawTool === "polygon") {
           if (isDrawing && currentPath.length >= 2) {
@@ -356,7 +401,8 @@ export function useBattlemapInteractions({
               g.lineTo(currentPath[i], currentPath[i + 1]);
             }
             g.lineTo(x, y);
-            g.stroke({ color: 0xff0000, width: 2, alpha: 1 });
+            g.stroke({ color: strokeColor, width: strokeWidth || 2, alpha: 1 });
+            g.fill({ color: fillColor || 0xffffff, alpha: fillAlpha ?? 0.1 }); // Show fill preview
           }
         }
       }
@@ -391,8 +437,20 @@ export function useBattlemapInteractions({
       // Allow middle button to pass through for drag (handled by mousedown listener)
       if (e.button === 1) return;
 
+      // Handle Right Click (Context Menu)
+      if (e.button === 2) {
+        // Tokens context menu is handled by useTokenRenderer (Pixi interactions).
+        // TODO: Implement Drawing context menu here (using drawingsArray).
+        return;
+      }
+
       // Tools only work with left button
       if (isSpacePressedRef.current || e.button !== 0) return;
+
+      // Track left button press for select tool marquee visibility
+      if (activeTool === "select" && e.button === 0) {
+        isSelectButtonPressedRef.current = true;
+      }
 
       const point = viewport.toLocal({ x: e.offsetX, y: e.offsetY });
       let { x, y } = point;
@@ -414,23 +472,74 @@ export function useBattlemapInteractions({
 
       if (activeTool === "fog") {
         if (fogTool === "fill") {
-          doc.transact(() => {
-            fogArray.push([
-              {
-                id: uuidv7(),
-                type: "rect",
-                data: [0, 0, FOG_SIZE, FOG_SIZE],
-                operation: fogMode === "hide" ? "add" : "sub",
-              },
-            ]);
-          });
+          const segments: WallSegment[] = [];
+          if (wallsArray) {
+            wallsArray.forEach((w) => segments.push(...w.segments));
+          }
+
+          const width = settings.mapWidth || FOG_SIZE;
+          const height = settings.mapHeight || FOG_SIZE;
+          const bounds = { x: 0, y: 0, width, height };
+
+          // Use a reasonable resolution (e.g. 10px or 20px) depending on map size
+          const resolution = 10;
+          const poly = calculateFogFill(x, y, segments, bounds, resolution);
+
+          if (poly && poly.length >= 6) {
+            doc.transact(() => {
+              const shapeId = uuidv7();
+              fogArray.push([
+                {
+                  id: shapeId,
+                  type: "poly",
+                  data: poly,
+                  operation: fogMode === "hide" ? "add" : "sub",
+                },
+              ]);
+
+              // Auto-create Room if none active and we are revealing
+              let targetRoomId = activeRoomId;
+              if (!targetRoomId && fogMode === "reveal" && roomsArray) {
+                targetRoomId = uuidv7();
+                const newRoom: FogRoom = {
+                  id: targetRoomId,
+                  name: `Room ${roomsArray.length + 1}`,
+                  color: "#3b82f6", // Default Blue
+                  shapeIds: [],
+                  bounds: [],
+                  visible: true,
+                  isRevealed: true,
+                };
+                roomsArray.push([newRoom]);
+              }
+
+              // Link to Room
+              if (targetRoomId && fogMode === "reveal" && roomsArray) {
+                const currentRooms = roomsArray.toArray();
+                const roomIndex = currentRooms.findIndex(
+                  (r) => r.id === targetRoomId
+                );
+                if (roomIndex !== -1) {
+                  const room = currentRooms[roomIndex];
+                  const updated = {
+                    ...room,
+                    shapeIds: [...(room.shapeIds || []), shapeId],
+                  };
+                  roomsArray.delete(roomIndex, 1);
+                  roomsArray.insert(roomIndex, [updated]);
+                }
+              }
+            });
+          }
           return;
         } else if (fogTool === "grid") {
           const shape = GridRenderer.getCellShape(
             x,
             y,
             settings.gridType,
-            settings.gridCellSize
+            settings.gridCellSize,
+            settings.gridOffsetX || 0,
+            settings.gridOffsetY || 0
           );
 
           if (shape) {
@@ -734,30 +843,115 @@ export function useBattlemapInteractions({
         // keeping mostly empty or redirecting logic if needed, but tool is removed from toolbar
       }
 
+      // RIGHT CLICK -> Context Menu
+      if (e.button === 2) {
+        e.preventDefault();
+        e.stopPropagation();
+
+        // Hit Test for Drawings
+        let hitId: string | null = null;
+        const items = drawingsArray.toArray();
+        for (let i = items.length - 1; i >= 0; i--) {
+          const d = items[i];
+          if (d.layer !== (settings.activeLayerId || "map")) continue;
+
+          let isHit = false;
+          if (d.type === "rect") {
+            if (
+              x >= d.x &&
+              x <= d.x + d.width &&
+              y >= d.y &&
+              y <= d.y + d.height
+            ) {
+              isHit = true;
+            }
+          } else if (d.type === "ellipse") {
+            const rx = d.width / 2;
+            const ry = d.height / 2;
+            const cx = d.x + rx;
+            const cy = d.y + ry;
+            if (
+              Math.pow(x - cx, 2) / Math.pow(rx, 2) +
+                Math.pow(y - cy, 2) / Math.pow(ry, 2) <=
+              1
+            ) {
+              isHit = true;
+            }
+          } else if (d.type === "brush" || d.type === "polygon") {
+            // Simplified bounding box hit for paths
+            let minX = Infinity,
+              minY = Infinity,
+              maxX = -Infinity,
+              maxY = -Infinity;
+            const pts = d.points;
+            for (let j = 0; j < pts.length; j += 2) {
+              minX = Math.min(minX, pts[j]);
+              maxX = Math.max(maxX, pts[j]);
+              minY = Math.min(minY, pts[j + 1]);
+              maxY = Math.max(maxY, pts[j + 1]);
+            }
+            if (x >= minX && x <= maxX && y >= minY && y <= maxY) {
+              isHit = true;
+            }
+          }
+
+          if (isHit) {
+            hitId = d.id;
+            break; // Found top-most
+          }
+        }
+
+        const actions: ContextMenuAction[] = [];
+        if (hitId) {
+          actions.push({
+            id: "delete",
+            label: "Delete",
+            onClick: () => {
+              const items = drawingsArray.toArray();
+              const idx = items.findIndex((d) => d.id === hitId);
+              if (idx !== -1) drawingsArray.delete(idx, 1);
+            },
+            danger: true,
+          });
+        } else {
+          actions.push({
+            id: "reset-view",
+            label: "Reset View",
+            onClick: () => viewport?.setZoom(1),
+          });
+        }
+
+        if (actions.length > 0) {
+          onOpenContextMenu(e.clientX, e.clientY, actions);
+        }
+        return;
+      }
+
       // Update preview immediately on down
       updatePreview(x, y);
     },
     [
-      activeTool,
-      appendToCurrentPath,
-      clearCurrentPath,
-      drawingsArray,
-      fogMode,
-      fogTool,
-      drawTool,
       viewport,
-      currentPath,
       doc,
       fogArray,
-      isDrawing,
+      drawingsArray,
+      wallsArray,
+      roomsArray,
+      settings,
       previewGraphicsRef,
-      setCurrentPath,
+      activeTool,
+      fogTool,
+      drawTool,
+      fogMode,
+      activeRoomId,
+      isDrawing,
       setIsDrawing,
-      settings.activeLayerId,
-      settings.gridCellSize,
-      settings.gridType,
-      settings.snapToGrid,
+      setCurrentPath,
+      appendToCurrentPath,
+      currentPath,
+      clearCurrentPath,
       updatePreview,
+      onOpenContextMenu,
     ]
   );
 
@@ -847,7 +1041,16 @@ export function useBattlemapInteractions({
 
           // Cleanup
           marqueeStartRef.current = null;
-          if (previewGraphicsRef.current) previewGraphicsRef.current.clear();
+          if (previewGraphicsRef.current) {
+            previewGraphicsRef.current.clear();
+          }
+          // Force redraw to ensure cleared
+          updatePreview(0, 0); // Coordinates don't matter since it will clear
+        }
+
+        // Always set pressed to false on up if left button
+        if (e.button === 0) {
+          isSelectButtonPressedRef.current = false;
         }
 
         useBattlemapStore.getState().setIsDraggingDrawing(false);
@@ -916,20 +1119,31 @@ export function useBattlemapInteractions({
         }
       } else if (activeTool === "draw" && isDrawing) {
         if (drawTool === "brush" && currentPath.length >= 4) {
+          const newId = uuidv7();
+          const { strokeColor, strokeWidth, opacity, blur } =
+            useBattlemapStore.getState().drawingProps;
+
           doc.transact(() => {
             drawingsArray.push([
               {
-                id: uuidv7(),
+                id: newId,
                 type: "brush",
                 points: [...currentPath],
-                strokeColor: "#ff0000",
-                strokeWidth: 2,
+                strokeColor: strokeColor || "#ff0000",
+                strokeWidth: strokeWidth || 2,
+                opacity: opacity ?? 1,
+                blur: blur ?? 0,
                 layer: settings.activeLayerId || "map",
                 x: 0,
                 y: 0,
               },
             ]);
           });
+          // Auto Switch
+          useBattlemapStore.getState().setActiveTool("select");
+          useBattlemapStore.getState().setSelectedDrawingIds([newId]);
+          setIsDrawing(false);
+          clearCurrentPath();
         } else if (drawTool === "rect" || drawTool === "ellipse") {
           const [startX, startY, endX, endY] = currentPath;
           const x = Math.min(startX, endX);
@@ -937,24 +1151,42 @@ export function useBattlemapInteractions({
           const width = Math.abs(endX - startX);
           const height = Math.abs(endY - startY);
 
-          if (width > 1 && height > 1) {
+          if (width > 5 && height > 5) {
+            // Min size check
+            const newId = uuidv7();
+            const {
+              strokeColor,
+              strokeWidth,
+              fillColor,
+              fillAlpha,
+              opacity,
+              blur,
+            } = useBattlemapStore.getState().drawingProps;
+
             doc.transact(() => {
               drawingsArray.push([
                 {
-                  id: uuidv7(),
+                  id: newId,
                   type: drawTool, // "rect" or "ellipse"
                   x,
                   y,
                   width,
                   height,
-                  strokeColor: "#ff0000",
-                  strokeWidth: 2,
-                  fillColor: "#ffffff",
-                  fillAlpha: 0,
+                  strokeColor: strokeColor || "#ff0000",
+                  strokeWidth: strokeWidth || 2,
+                  fillColor: fillColor || "#ffffff",
+                  fillAlpha: fillAlpha ?? 0,
+                  opacity: opacity ?? 1,
+                  blur: blur ?? 0,
                   layer: settings.activeLayerId || "map",
                 } as DrawingShape,
               ]);
             });
+            // Auto Switch
+            useBattlemapStore.getState().setActiveTool("select");
+            useBattlemapStore.getState().setSelectedDrawingIds([newId]);
+            setIsDrawing(false);
+            clearCurrentPath();
           }
         } else if (drawTool === "polygon") {
           // Polygon finishes on double click or closing loop
@@ -964,12 +1196,12 @@ export function useBattlemapInteractions({
 
       // Default clearance for non-polygon tools (or failed polygon)
       // Don't reset for wall tool - it has its own drawing logic
-      if (
+      const shouldClear =
         activeTool !== "wall" &&
         (activeTool !== "fog" || fogTool !== "polygon") &&
-        (activeTool !== "draw" || drawTool !== "polygon") &&
-        activeTool !== "select"
-      ) {
+        (activeTool !== "draw" || drawTool !== "polygon");
+
+      if (shouldClear) {
         setIsDrawing(false);
         clearCurrentPath();
         if (previewGraphicsRef.current) previewGraphicsRef.current.clear();
@@ -1002,6 +1234,13 @@ export function useBattlemapInteractions({
         dragStartPosRef.current = null;
         resizeHandleRef.current = null;
         initialResizeStateRef.current = null;
+        isSelectButtonPressedRef.current = false;
+        marqueeStartRef.current = null;
+        const g = previewGraphicsRef.current;
+        if (g) {
+          g.clear();
+          g.visible = false; // Hide if needed
+        }
       }
     };
 
@@ -1017,22 +1256,37 @@ export function useBattlemapInteractions({
       if (activeTool === "draw" && drawTool === "polygon" && isDrawing) {
         // Finish Polygon
         if (currentPath.length >= 6) {
+          const {
+            strokeColor,
+            strokeWidth,
+            fillColor,
+            fillAlpha,
+            opacity,
+            blur,
+          } = useBattlemapStore.getState().drawingProps;
+
+          const newId = uuidv7();
           doc.transact(() => {
             drawingsArray.push([
               {
-                id: uuidv7(),
+                id: newId,
                 type: "polygon",
                 points: [...currentPath],
                 x: 0,
                 y: 0,
-                strokeColor: "#ff0000",
-                strokeWidth: 2,
-                fillColor: "#ffffff",
-                fillAlpha: 0.1,
+                strokeColor: strokeColor || "#ff0000",
+                strokeWidth: strokeWidth || 2,
+                fillColor: fillColor || "#ffffff",
+                fillAlpha: fillAlpha ?? 0.1,
+                opacity: opacity ?? 1,
+                blur: blur ?? 0,
                 layer: settings.activeLayerId || "map",
               },
             ]);
           });
+          // Auto Switch
+          useBattlemapStore.getState().setActiveTool("select");
+          useBattlemapStore.getState().setSelectedDrawingIds([newId]);
           setIsDrawing(false);
           clearCurrentPath();
           if (previewGraphicsRef.current) previewGraphicsRef.current.clear();
@@ -1162,9 +1416,29 @@ export function useBattlemapInteractions({
       }
 
       // Update Preview (Always, for hover cursors etc)
-      const { isDraggingDrawing } = useBattlemapStore.getState();
+      const { isDraggingDrawing, selectedDrawingIds } =
+        useBattlemapStore.getState();
       if (!isDraggingDrawing) {
         updatePreview(x, y);
+      } else if (
+        activeTool === "select" &&
+        marqueeStartRef.current &&
+        isSelectButtonPressedRef.current &&
+        selectedDrawingIds.length === 0
+      ) {
+        const g = previewGraphicsRef.current;
+        if (g) {
+          g.clear();
+          const startX = marqueeStartRef.current.x;
+          const startY = marqueeStartRef.current.y;
+          const minX = Math.min(startX, x);
+          const minY = Math.min(startY, y);
+          const w = Math.abs(x - startX);
+          const h = Math.abs(y - startY);
+          g.rect(minX, minY, w, h);
+          g.fill({ color: 0x00aaff, alpha: 0.2 });
+          g.stroke({ color: 0x00aaff, width: 1, alpha: 0.8 });
+        }
       } else if (previewGraphicsRef.current) {
         previewGraphicsRef.current.clear();
       }
@@ -1351,15 +1625,13 @@ export function useBattlemapInteractions({
       settings,
       activeTool,
       fogTool,
+      drawTool,
       previewGraphicsRef,
       updatePreview,
       isDrawing,
       currentPath,
       appendToCurrentPath,
       setCurrentPath,
-      drawTool,
-      isMiddlePressedRef,
-      middleDragStartRef,
       doc,
       drawingsArray,
     ]

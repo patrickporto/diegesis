@@ -187,7 +187,9 @@ export function useTokenRenderer({
             centerX,
             centerY,
             currentSettings.gridType,
-            currentSettings.gridCellSize
+            currentSettings.gridCellSize,
+            currentSettings.gridOffsetX || 0,
+            currentSettings.gridOffsetY || 0
           );
           centerX = snapped.x;
           centerY = snapped.y;

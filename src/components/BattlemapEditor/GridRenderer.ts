@@ -17,18 +17,20 @@ export class GridRenderer {
     width: number,
     height: number,
     cellSize: number,
-    options: StrokeOptions
+    options: StrokeOptions,
+    offsetX = 0,
+    offsetY = 0
   ): void {
     const color = GRID_COLORS[options.color];
 
     // Draw vertical lines
-    for (let x = 0; x <= width; x += cellSize) {
+    for (let x = offsetX; x <= width; x += cellSize) {
       graphics.moveTo(x, 0);
       graphics.lineTo(x, height);
     }
 
     // Draw horizontal lines
-    for (let y = 0; y <= height; y += cellSize) {
+    for (let y = offsetY; y <= height; y += cellSize) {
       graphics.moveTo(0, y);
       graphics.lineTo(width, y);
     }
@@ -174,7 +176,9 @@ export class GridRenderer {
     height: number,
     gridType: GridType,
     cellSize: number,
-    options: StrokeOptions
+    options: StrokeOptions,
+    offsetX = 0,
+    offsetY = 0
   ): void {
     graphics.clear();
 
@@ -183,7 +187,15 @@ export class GridRenderer {
         // No grid to draw
         break;
       case "square":
-        this.drawSquareGrid(graphics, width, height, cellSize, options);
+        this.drawSquareGrid(
+          graphics,
+          width,
+          height,
+          cellSize,
+          options,
+          offsetX,
+          offsetY
+        );
         break;
       case "hex-vertical":
         this.drawHexGrid(
@@ -218,7 +230,9 @@ export class GridRenderer {
     x: number,
     y: number,
     gridType: GridType,
-    cellSize: number
+    cellSize: number,
+    offsetX = 0,
+    offsetY = 0
   ): { x: number; y: number } {
     switch (gridType) {
       case "none":
@@ -226,10 +240,10 @@ export class GridRenderer {
 
       case "square": {
         // Find which cell the point is in, then return that cell's center
-        const cellX = Math.floor(x / cellSize);
-        const cellY = Math.floor(y / cellSize);
-        const snappedX = cellX * cellSize + cellSize / 2;
-        const snappedY = cellY * cellSize + cellSize / 2;
+        const cellX = Math.floor((x - offsetX) / cellSize);
+        const cellY = Math.floor((y - offsetY) / cellSize);
+        const snappedX = cellX * cellSize + cellSize / 2 + offsetX;
+        const snappedY = cellY * cellSize + cellSize / 2 + offsetY;
         return { x: snappedX, y: snappedY };
       }
 
@@ -238,13 +252,13 @@ export class GridRenderer {
         const hexWidth = (Math.sqrt(3) / 2) * hexHeight;
         const vertDist = hexHeight * 0.75;
 
-        const row = Math.round(y / vertDist);
-        const offsetX = Math.abs(row) % 2 === 1 ? hexWidth / 2 : 0;
-        const col = Math.round((x - offsetX) / hexWidth);
+        const row = Math.round((y - offsetY) / vertDist);
+        const hexOffset = Math.abs(row) % 2 === 1 ? hexWidth / 2 : 0;
+        const col = Math.round((x - offsetX - hexOffset) / hexWidth);
 
         return {
-          x: col * hexWidth + offsetX,
-          y: row * vertDist,
+          x: col * hexWidth + hexOffset + offsetX,
+          y: row * vertDist + offsetY,
         };
       }
 
@@ -253,13 +267,13 @@ export class GridRenderer {
         const hexHeight = (Math.sqrt(3) / 2) * hexWidth;
         const horizDist = hexWidth * 0.75;
 
-        const col = Math.round(x / horizDist);
-        const offsetY = Math.abs(col) % 2 === 1 ? hexHeight / 2 : 0;
-        const row = Math.round((y - offsetY) / hexHeight);
+        const col = Math.round((x - offsetX) / horizDist);
+        const hexOffsetY = Math.abs(col) % 2 === 1 ? hexHeight / 2 : 0;
+        const row = Math.round((y - offsetY - hexOffsetY) / hexHeight);
 
         return {
-          x: col * horizDist,
-          y: row * hexHeight + offsetY,
+          x: col * horizDist + offsetX,
+          y: row * hexHeight + hexOffsetY + offsetY,
         };
       }
 
@@ -267,15 +281,18 @@ export class GridRenderer {
         const isoWidth = cellSize;
         const isoHeight = cellSize / 2;
 
-        const isoX = x / isoWidth + y / isoHeight;
-        const isoY = y / isoHeight - x / isoWidth;
+        const xAdjusted = x - offsetX;
+        const yAdjusted = y - offsetY;
+
+        const isoX = xAdjusted / isoWidth + yAdjusted / isoHeight;
+        const isoY = yAdjusted / isoHeight - xAdjusted / isoWidth;
 
         const snappedIsoX = Math.round(isoX);
         const snappedIsoY = Math.round(isoY);
 
         return {
-          x: ((snappedIsoX - snappedIsoY) * isoWidth) / 2,
-          y: ((snappedIsoX + snappedIsoY) * isoHeight) / 2,
+          x: ((snappedIsoX - snappedIsoY) * isoWidth) / 2 + offsetX,
+          y: ((snappedIsoX + snappedIsoY) * isoHeight) / 2 + offsetY,
         };
       }
 
@@ -291,13 +308,15 @@ export class GridRenderer {
     x: number,
     y: number,
     gridType: GridType,
-    cellSize: number
+    cellSize: number,
+    offsetX = 0,
+    offsetY = 0
   ): { type: "rect" | "poly"; data: number[] } | null {
     if (gridType === "none") return null;
 
     if (gridType === "square") {
-      const cellX = Math.floor(x / cellSize) * cellSize;
-      const cellY = Math.floor(y / cellSize) * cellSize;
+      const cellX = Math.floor((x - offsetX) / cellSize) * cellSize + offsetX;
+      const cellY = Math.floor((y - offsetY) / cellSize) * cellSize + offsetY;
       return {
         type: "rect",
         data: [cellX, cellY, cellSize, cellSize],
@@ -305,7 +324,14 @@ export class GridRenderer {
     }
 
     if (gridType.startsWith("hex")) {
-      const center = this.snapToGrid(x, y, gridType, cellSize);
+      const center = this.snapToGrid(
+        x,
+        y,
+        gridType,
+        cellSize,
+        offsetX,
+        offsetY
+      );
       const points: number[] = [];
       const radius = cellSize / 2;
       const pointyTop = gridType === "hex-vertical";
@@ -327,16 +353,19 @@ export class GridRenderer {
       const isoWidth = cellSize;
       const isoHeight = cellSize / 2;
 
-      const isoX = x / isoWidth + y / isoHeight;
-      const isoY = y / isoHeight - x / isoWidth;
+      const xAdjusted = x - offsetX;
+      const yAdjusted = y - offsetY;
+
+      const isoX = xAdjusted / isoWidth + yAdjusted / isoHeight;
+      const isoY = yAdjusted / isoHeight - xAdjusted / isoWidth;
       const tileX = Math.floor(isoX);
       const tileY = Math.floor(isoY);
 
       const cenIsoX = tileX + 0.5;
       const cenIsoY = tileY + 0.5;
 
-      const cx = ((cenIsoX - cenIsoY) * isoWidth) / 2;
-      const cy = ((cenIsoX + cenIsoY) * isoHeight) / 2;
+      const cx = ((cenIsoX - cenIsoY) * isoWidth) / 2 + offsetX;
+      const cy = ((cenIsoX + cenIsoY) * isoHeight) / 2 + offsetY;
 
       return {
         type: "poly",

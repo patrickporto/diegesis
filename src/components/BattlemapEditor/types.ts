@@ -35,6 +35,8 @@ export interface BattlemapSettings {
   viewportX?: number; // Viewport position
   viewportY?: number;
   viewportScale?: number; // Viewport zoom level
+  gridOffsetX?: number; // Grid X offset for alignment
+  gridOffsetY?: number; // Grid Y offset for alignment
 }
 
 export interface Token {
@@ -75,6 +77,8 @@ export interface DrawingBase {
 export interface DrawingBrush extends DrawingBase {
   type: "brush";
   points: number[]; // Absolute points
+  blur?: number; // 0-20px blur effect
+  opacity?: number; // 0-1 opacity
 }
 
 export interface DrawingText extends DrawingBase {
@@ -83,17 +87,23 @@ export interface DrawingText extends DrawingBase {
   fontSize: number;
   fontFamily: string;
   width?: number; // max width
+  blur?: number; // 0-20px blur effect
+  opacity?: number; // 0-1 opacity
 }
 
 export interface DrawingShapeGeometry extends DrawingBase {
   type: "rect" | "ellipse";
   width: number;
   height: number;
+  blur?: number; // 0-20px blur effect
+  opacity?: number; // 0-1 opacity
 }
 
 export interface DrawingPolygon extends DrawingBase {
   type: "polygon";
   points: number[]; // Relative to x,y or Absolute? Let's use Absolute for consistency with Brush for now
+  blur?: number; // 0-20px blur effect
+  opacity?: number; // 0-1 opacity
 }
 
 export type DrawingShape =
@@ -166,6 +176,16 @@ export interface FogShape {
   operation: "add" | "sub"; // 'add' = Hide (Draw Fog), 'sub' = Reveal (Cut Hole)
   opacity?: number;
   width?: number; // Brush stroke width
+}
+
+export interface FogRoom {
+  id: string;
+  name: string;
+  color: string;
+  shapeIds: string[];
+  bounds: number[]; // Polygon points defining room boundary
+  visible: boolean;
+  isRevealed: boolean;
 }
 
 export const DEFAULT_SETTINGS: BattlemapSettings = {

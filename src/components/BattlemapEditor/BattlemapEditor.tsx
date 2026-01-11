@@ -10,6 +10,7 @@ import { BattlemapToolbar } from "./BattlemapToolbar";
 import { ContextMenu } from "./ContextMenu"; // Correct path check needed
 import { useBackgroundRenderer } from "./hooks/useBackgroundRenderer";
 import { useBattlemapData } from "./hooks/useBattlemapData";
+import { useBattlemapHotkeys } from "./hooks/useBattlemapHotkeys";
 import { useBattlemapInteractions } from "./hooks/useBattlemapInteractions";
 import { useBattlemapLayers } from "./hooks/useBattlemapLayers";
 import { useDrawingRenderer } from "./hooks/useDrawingRenderer";
@@ -28,8 +29,16 @@ interface LegacyText {
   fontSize?: number;
   fontFamily?: string;
 }
+import { DrawingPropertiesPanel } from "./DrawingPropertiesPanel";
+import { FogPropertiesPanel } from "./FogPropertiesPanel";
+import { GridRenderer } from "./GridRenderer";
 import { useWallRenderer } from "./hooks/useWallRenderer";
+import { HotkeysHelp } from "./HotkeysHelp";
+import { LayerManagerPanel } from "./LayerManagerPanel";
+import { PanelLayout, PanelLocation } from "./PanelLayout";
 import { PropertyEditor } from "./PropertyEditor";
+import { SideDock } from "./SideDock";
+import { TabbedPanelHost } from "./TabbedPanelHost";
 import { TextInputOverlay } from "./TextInputOverlay";
 import { TokenManagerSidebar } from "./TokenManagerSidebar";
 import { DrawingShape } from "./types";
@@ -48,8 +57,210 @@ export function BattlemapEditor({ fileId, doc }: BattlemapEditorProps) {
     actions: ContextMenuAction[];
   } | null>(null);
 
-  const [isTokensOpen, setIsTokensOpen] = useState(false);
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  // Panel State Management - All panels now use SideDock action icons
+  const [panelLocations, setPanelLocations] = useState<
+    Record<PanelLocation, string[]>
+  >({
+    top: [],
+    bottom: [],
+    topLeft: [],
+    bottomLeft: [],
+    topRight: [],
+    bottomRight: [],
+  });
+
+  // Clean up any SideDock panels that may have been accidentally added to panelLocations
+  useEffect(() => {
+    const sideDockPanelIds = ["tokens", "layers", "settings", "properties"];
+    setPanelLocations((prev) => {
+      const next = { ...prev };
+      let hasChanges = false;
+      for (const loc in next) {
+        const originalLength = next[loc as PanelLocation].length;
+        next[loc as PanelLocation] = next[loc as PanelLocation].filter(
+          (id) => !sideDockPanelIds.includes(id)
+        );
+        if (next[loc as PanelLocation].length !== originalLength) {
+          hasChanges = true;
+        }
+      }
+      return hasChanges ? next : prev;
+    });
+  }, []);
+
+  const [activePanelTabs, setActivePanelTabs] = useState<
+    Record<PanelLocation, string | null>
+  >({
+    top: null,
+    bottom: null,
+    topLeft: null,
+    bottomLeft: null,
+    topRight: null,
+    bottomRight: null,
+  });
+
+  const [openPanels, setOpenPanels] = useState<Record<string, boolean>>({
+    tokens: false,
+    layers: false,
+    settings: false,
+    properties: false,
+  });
+
+  const getPanelTitle = (id: string) => {
+    switch (id) {
+      case "tokens":
+        return "Tokens";
+      case "layers":
+        return "Layers";
+      case "settings":
+        return "Settings";
+      case "properties":
+        return "Properties";
+      default:
+        return id;
+    }
+  };
+
+  const getPanelIcon = (id: string) => {
+    switch (id) {
+      case "tokens":
+        return (
+          <svg
+            className="w-5 h-5"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
+            />
+          </svg>
+        );
+      case "layers":
+        return (
+          <svg
+            className="w-5 h-5"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"
+            />
+          </svg>
+        );
+      case "settings":
+        return (
+          <svg
+            className="w-5 h-5"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
+            />
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+            />
+          </svg>
+        );
+      case "properties":
+        return (
+          <svg
+            className="w-5 h-5"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"
+            />
+          </svg>
+        );
+      default:
+        return (
+          <svg
+            className="w-5 h-5"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+            />
+          </svg>
+        );
+    }
+  };
+
+  const handlePanelDrop = (panelId: string, location: PanelLocation) => {
+    setPanelLocations((prev) => {
+      const next = { ...prev };
+      // Remove from old location
+      for (const loc in next) {
+        next[loc as PanelLocation] = next[loc as PanelLocation].filter(
+          (id) => id !== panelId
+        );
+      }
+      // Add to new location
+      next[location] = [...next[location], panelId];
+      return next;
+    });
+
+    // Make it the active tab in the new location
+    setActivePanelTabs((prev) => ({
+      ...prev,
+      [location]: panelId,
+    }));
+  };
+
+  const togglePanel = useCallback(
+    (id: string, force?: boolean) => {
+      const newState = force !== undefined ? force : !openPanels[id];
+      setOpenPanels((prev) => ({
+        ...prev,
+        [id]: newState,
+      }));
+
+      if (newState) {
+        // If opening, ensure it's the active tab in its location
+        let foundLoc: PanelLocation | null = null;
+        for (const [loc, ids] of Object.entries(panelLocations)) {
+          if (ids.includes(id)) {
+            foundLoc = loc as PanelLocation;
+            break;
+          }
+        }
+
+        if (foundLoc) {
+          setActivePanelTabs((prev) => ({
+            ...prev,
+            [foundLoc]: id,
+          }));
+        }
+      }
+    },
+    [openPanels, panelLocations]
+  );
 
   // Store
   const {
@@ -65,6 +276,8 @@ export function BattlemapEditor({ fileId, doc }: BattlemapEditorProps) {
     setBrushSize,
     wallTool,
     setWallTool,
+    drawingProps,
+    setDrawingProps,
   } = useBattlemapStore();
 
   const {
@@ -89,7 +302,22 @@ export function BattlemapEditor({ fileId, doc }: BattlemapEditorProps) {
     fogArray,
     walls,
     wallsArray,
+    roomsArray,
   } = useBattlemapData({ doc, fileId });
+
+  // Enable keyboard shortcuts
+  useBattlemapHotkeys();
+
+  const selectedDrawingIds = useBattlemapStore((s) => s.selectedDrawingIds);
+
+  // Auto-open Properties panel on selection or tool change
+  useEffect(() => {
+    if (activeTool === "draw" || activeTool === "fog") {
+      togglePanel("properties", true);
+    } else if (activeTool === "select" && selectedDrawingIds.length > 0) {
+      togglePanel("properties", true);
+    }
+  }, [activeTool, selectedDrawingIds.length, togglePanel]);
 
   // Restore Default Layers Logic
   useEffect(() => {
@@ -255,8 +483,11 @@ export function BattlemapEditor({ fileId, doc }: BattlemapEditorProps) {
     doc,
     fogArray,
     drawingsArray,
+    wallsArray,
+    roomsArray,
     settings,
     previewGraphicsRef,
+    onOpenContextMenu: (x, y, actions) => setContextMenu({ x, y, actions }),
   });
 
   // ...
@@ -287,7 +518,144 @@ export function BattlemapEditor({ fileId, doc }: BattlemapEditorProps) {
   useFogRenderer({ fogShapes, layerContainersRef, app, isReady, settings });
   useDrawingRenderer({ drawings, layerContainersRef, isReady });
   useGridRenderer({ settings, layerContainersRef, app, isReady });
+  // Helper to render a specific panel content (inner)
+  const renderInnerPanelContent = (
+    id: string,
+    orientation: "vertical" | "horizontal" = "vertical"
+  ) => {
+    switch (id) {
+      case "tokens":
+        return (
+          <TokenManagerSidebar
+            doc={doc}
+            onClose={() => togglePanel("tokens", false)}
+            orientation={orientation}
+          />
+        );
+      case "layers":
+        return (
+          <LayerManagerPanel
+            layers={settings.layers || []}
+            activeLayerId={settings.activeLayerId || ""}
+            onUpdateLayers={(layers) => updateSettings({ layers })}
+            onSetActiveLayer={handleSetActiveLayer}
+            onClose={() => togglePanel("layers", false)}
+          />
+        );
+      case "settings":
+        return (
+          <BattlemapSettingsPanel
+            isOpen={true}
+            settings={settings}
+            onSettingsChange={handleSettingsChange}
+            onClose={() => togglePanel("settings", false)}
+            onBackgroundUpload={handleBackgroundUpload}
+            onBackgroundClear={handleBackgroundClear}
+          />
+        );
+      case "properties":
+        // If selection active, show Property Editor
+        if (
+          activeTool === "select" &&
+          selectedDrawingIds.length > 0 &&
+          drawingsArray
+        ) {
+          return <PropertyEditor key={id} drawingsArray={drawingsArray} />;
+        }
 
+        // If Fog tool active, show simplified properties
+        if (activeTool === "fog") {
+          return (
+            <FogPropertiesPanel key={id} activeTool={activeTool} doc={doc} />
+          );
+        }
+
+        // Default: Drawing Properties (Tool Defaults)
+        return (
+          <DrawingPropertiesPanel
+            key={id}
+            activeTool={activeTool}
+            drawTool={drawTool}
+            properties={drawingProps}
+            onPropertiesChange={setDrawingProps}
+          />
+        );
+      default:
+        return null;
+    }
+  };
+
+  const getSlotContent = (location: PanelLocation) => {
+    const orientation =
+      location === "top" || location === "bottom" ? "horizontal" : "vertical";
+
+    // For topRight, render panels directly based on openPanels state
+    // since these are now controlled by SideDock action icons
+    if (location === "topRight") {
+      const sideDockPanelIds = ["tokens", "layers", "settings", "properties"];
+
+      // Check which panels have been moved to other locations
+      const movedPanelIds = new Set<string>();
+      for (const [loc, ids] of Object.entries(panelLocations)) {
+        if (loc !== "topRight") {
+          ids.forEach((id) => movedPanelIds.add(id));
+        }
+      }
+
+      // Only show panels that are open AND not moved to another location
+      const visibleIds = sideDockPanelIds.filter(
+        (id) => openPanels[id] && !movedPanelIds.has(id)
+      );
+
+      if (visibleIds.length === 0) return null;
+
+      // Determine active ID
+      let activeId = activePanelTabs[location];
+      if (!activeId || !visibleIds.includes(activeId)) {
+        activeId = visibleIds[0];
+      }
+
+      return (
+        <TabbedPanelHost
+          panelIds={visibleIds}
+          activeId={activeId as string}
+          onSelect={(id) =>
+            setActivePanelTabs((prev) => ({ ...prev, [location]: id }))
+          }
+          onClose={(id) => togglePanel(id, false)}
+          renderPanelContent={renderInnerPanelContent}
+          getPanelTitle={getPanelTitle}
+          orientation={orientation}
+        />
+      );
+    }
+
+    // For other locations, use panelLocations as before
+    const ids = panelLocations[location] || [];
+    const visibleIds = ids.filter((id) => openPanels[id]);
+
+    if (visibleIds.length === 0) return null;
+
+    // Determine active ID
+    let activeId = activePanelTabs[location];
+    if (!activeId || !visibleIds.includes(activeId)) {
+      activeId = visibleIds[0];
+    }
+
+    return (
+      <TabbedPanelHost
+        panelIds={visibleIds}
+        activeId={activeId as string}
+        onSelect={(id) =>
+          setActivePanelTabs((prev) => ({ ...prev, [location]: id }))
+        }
+        onClose={(id) => togglePanel(id, false)}
+        renderPanelContent={renderInnerPanelContent}
+        getPanelTitle={getPanelTitle}
+        orientation={orientation}
+      />
+    );
+  };
   // Wall interactions and rendering
   useWallInteractions({
     app,
@@ -375,17 +743,17 @@ export function BattlemapEditor({ fileId, doc }: BattlemapEditorProps) {
         let posX = point.x;
         let posY = point.y;
 
-        // We don't have direct access to GridRenderer.snapToGrid helper here unless imported
-        // But we can reproduce or import it.
-        // Assuming loose for now or implemented nearby.
-        /*
-        if (settings.snapToGrid) { ... }
-        */
-        // Basic implementation for now:
         if (settings.snapToGrid) {
-          const size = settings.gridCellSize;
-          posX = Math.round(posX / size) * size + size / 2; // Center?
-          posY = Math.round(posY / size) * size + size / 2;
+          const snapped = GridRenderer.snapToGrid(
+            posX,
+            posY,
+            settings.gridType,
+            settings.gridCellSize,
+            settings.gridOffsetX || 0,
+            settings.gridOffsetY || 0
+          );
+          posX = snapped.x;
+          posY = snapped.y;
         }
 
         doc.transact(() => {
@@ -401,6 +769,7 @@ export function BattlemapEditor({ fileId, doc }: BattlemapEditorProps) {
             } as Token,
           ]);
         });
+        useBattlemapStore.getState().setActiveTool("select");
       } catch (err) {
         console.error("Failed to drop token:", err);
       }
@@ -410,84 +779,150 @@ export function BattlemapEditor({ fileId, doc }: BattlemapEditorProps) {
 
   return (
     <div className="absolute inset-0 w-full h-full bg-slate-900 overflow-hidden">
-      <div
-        ref={containerRef}
-        className="w-full h-full"
-        style={{ touchAction: "none" }}
-        onDragOver={onDragOver}
-        onDrop={onDrop}
-        onContextMenu={(e) => e.preventDefault()}
-      />
+      <PanelLayout
+        top={getSlotContent("top")}
+        bottom={getSlotContent("bottom")}
+        topLeft={getSlotContent("topLeft")}
+        bottomLeft={getSlotContent("bottomLeft")}
+        topRight={getSlotContent("topRight")}
+        bottomRight={getSlotContent("bottomRight")}
+        onPanelDrop={handlePanelDrop}
+      >
+        {/* Side Docks in all 4 positions */}
 
-      {/* Loading Overlay */}
-      {(!isReady || !synced) && (
-        <div className="absolute inset-0 z-[60] bg-slate-900 flex items-center justify-center">
-          <div className="flex flex-col items-center gap-4">
-            <div className="w-12 h-12 border-4 border-slate-700 border-t-sky-500 rounded-full animate-spin" />
-            <p className="text-slate-400 font-medium animate-pulse">
-              Loading Battlemap...
-            </p>
+        {/* Left Dock */}
+        <SideDock
+          position="left"
+          panels={[...panelLocations.topLeft, ...panelLocations.bottomLeft]
+            .filter((id) => !openPanels[id])
+            .map((id) => ({
+              id,
+              title: getPanelTitle(id),
+              icon: getPanelIcon(id),
+              isOpen: false,
+            }))}
+          onToggle={(id) => togglePanel(id, true)}
+        />
+
+        {/* Right Dock - includes the 4 main panels when closed */}
+        <SideDock
+          position="right"
+          panels={[
+            ...["tokens", "layers", "settings", "properties"].filter(
+              (id) =>
+                !openPanels[id] &&
+                !Object.values(panelLocations).some((arr) => arr.includes(id))
+            ),
+            ...panelLocations.topRight,
+            ...panelLocations.bottomRight,
+          ]
+            .filter((id, index, self) => self.indexOf(id) === index) // Remove duplicates
+            .filter((id) => !openPanels[id])
+            .map((id) => ({
+              id,
+              title: getPanelTitle(id),
+              icon: getPanelIcon(id),
+              isOpen: false,
+            }))}
+          onToggle={(id) => togglePanel(id, true)}
+        />
+
+        {/* Top Dock */}
+        <SideDock
+          position="top"
+          panels={panelLocations.top
+            .filter((id) => !openPanels[id])
+            .map((id) => ({
+              id,
+              title: getPanelTitle(id),
+              icon: getPanelIcon(id),
+              isOpen: false,
+            }))}
+          onToggle={(id) => togglePanel(id, true)}
+        />
+
+        {/* Bottom Dock */}
+        <SideDock
+          position="bottom"
+          panels={panelLocations.bottom
+            .filter((id) => !openPanels[id])
+            .map((id) => ({
+              id,
+              title: getPanelTitle(id),
+              icon: getPanelIcon(id),
+              isOpen: false,
+            }))}
+          onToggle={(id) => togglePanel(id, true)}
+        />
+
+        <div
+          ref={containerRef}
+          className="w-full h-full"
+          style={{ touchAction: "none" }}
+          onDragOver={onDragOver}
+          onDrop={onDrop}
+          onContextMenu={(e) => e.preventDefault()}
+        />
+
+        {/* Loading Overlay */}
+        {(!isReady || !synced) && (
+          <div className="absolute inset-0 z-[60] bg-slate-900 flex items-center justify-center">
+            <div className="flex flex-col items-center gap-4">
+              <div className="w-12 h-12 border-4 border-slate-700 border-t-sky-500 rounded-full animate-spin" />
+              <p className="text-slate-400 font-medium animate-pulse">
+                Loading Battlemap...
+              </p>
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* Scroll Indicators (Simplified for brevity, or full implementation) */}
+        {/* Scroll Indicators (Simplified for brevity, or full implementation) */}
 
-      <TokenManagerSidebar
-        doc={doc}
-        isOpen={isTokensOpen}
-        onClose={() => setIsTokensOpen(false)}
-        layers={settings.layers || []}
-        activeLayerId={settings.activeLayerId || ""}
-        onUpdateLayers={(layers) => updateSettings({ layers })}
-        onSetActiveLayer={handleSetActiveLayer}
-      />
-
-      <BattlemapToolbar
-        activeTool={activeTool}
-        onToolChange={setActiveTool}
-        onSettingsClick={() => setIsSettingsOpen(true)}
-        onTokensClick={() => setIsTokensOpen((prev) => !prev)}
-        fogMode={fogMode}
-        onFogModeChange={setFogMode}
-        fogTool={fogTool}
-        onFogToolChange={setFogTool}
-        drawTool={drawTool}
-        onDrawToolChange={setDrawTool}
-        brushSize={brushSize}
-        onBrushSizeChange={setBrushSize}
-        wallTool={wallTool}
-        onWallToolChange={setWallTool}
-      />
-
-      <TextInputOverlay
-        viewport={viewport}
-        drawings={drawings}
-        drawingsArray={drawingsArray}
-        doc={doc}
-      />
-
-      <PropertyEditor drawingsArray={drawingsArray} />
-
-      {contextMenu && (
-        <ContextMenu
-          x={contextMenu.x}
-          y={contextMenu.y}
-          actions={contextMenu.actions}
-          onClose={() => setContextMenu(null)}
+        <BattlemapToolbar
+          activeTool={activeTool}
+          onToolChange={(tool) => {
+            setActiveTool(tool);
+            // If new tool has properties, ensure properties panel is open (or logically visible)
+            // But 'properties' visibility in openPanels might be manual?
+            // Actually, we said properties panel visibility is controlled by active tool usually.
+            // But we can also allow user to close it.
+            // For now, let's auto-open properties if applicable.
+            if (tool === "fog" || tool === "draw") {
+              togglePanel("properties", true);
+              togglePanel("settings", false);
+              togglePanel("tokens", false);
+            }
+          }}
+          fogMode={fogMode}
+          onFogModeChange={setFogMode}
+          fogTool={fogTool}
+          onFogToolChange={setFogTool}
+          drawTool={drawTool}
+          onDrawToolChange={setDrawTool}
+          brushSize={brushSize}
+          onBrushSizeChange={setBrushSize}
+          wallTool={wallTool}
+          onWallToolChange={setWallTool}
         />
-      )}
 
-      {isSettingsOpen && (
-        <BattlemapSettingsPanel
-          isOpen={isSettingsOpen}
-          settings={settings}
-          onSettingsChange={handleSettingsChange}
-          onClose={() => setIsSettingsOpen(false)}
-          onBackgroundUpload={handleBackgroundUpload}
-          onBackgroundClear={handleBackgroundClear}
+        <TextInputOverlay
+          viewport={viewport}
+          drawings={drawings}
+          drawingsArray={drawingsArray}
+          doc={doc}
         />
-      )}
+
+        {contextMenu && (
+          <ContextMenu
+            x={contextMenu.x}
+            y={contextMenu.y}
+            actions={contextMenu.actions}
+            onClose={() => setContextMenu(null)}
+          />
+        )}
+
+        <HotkeysHelp />
+      </PanelLayout>
     </div>
   );
 }

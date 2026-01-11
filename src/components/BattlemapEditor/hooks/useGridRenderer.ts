@@ -40,7 +40,9 @@ export function useGridRenderer({
           color: settings.gridColor,
           alpha: settings.gridOpacity,
           width: settings.gridLineWidth,
-        }
+        },
+        settings.gridOffsetX || 0,
+        settings.gridOffsetY || 0
       );
       // Note: In original code, grid was re-drawn on viewport move? Or static big grid?
       // Original code: "viewport.addChild(grid)" and re-drew it.
@@ -54,6 +56,8 @@ export function useGridRenderer({
     settings.gridLineWidth,
     settings.mapWidth,
     settings.mapHeight,
+    settings.gridOffsetX,
+    settings.gridOffsetY,
     isReady,
     app,
     layerContainersRef,

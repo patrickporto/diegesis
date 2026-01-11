@@ -6,6 +6,7 @@ import {
   BattlemapSettings,
   DEFAULT_SETTINGS,
   DrawingPath,
+  FogRoom,
   FogShape,
   TextAnnotation,
   Token,
@@ -52,6 +53,11 @@ export function useBattlemapData({ doc, fileId }: UseBattlemapDataProps) {
     [doc, fileId]
   );
 
+  const roomsArray = useMemo(
+    () => doc.getArray<FogRoom>(`battlemap-rooms-${fileId}`),
+    [doc, fileId]
+  );
+
   // Local React State
   const [settings, setSettings] = useState<BattlemapSettings>(DEFAULT_SETTINGS);
   const [tokens, setTokens] = useState<Token[]>([]);
@@ -59,6 +65,7 @@ export function useBattlemapData({ doc, fileId }: UseBattlemapDataProps) {
   const [texts, setTexts] = useState<TextAnnotation[]>([]);
   const [fogShapes, setFogShapes] = useState<FogShape[]>([]);
   const [walls, setWalls] = useState<Wall[]>([]);
+  const [rooms, setRooms] = useState<FogRoom[]>([]);
 
   // Refs for current values (to avoid stale closures in effects if needed)
   const settingsRef = useRef(settings);
@@ -121,6 +128,18 @@ export function useBattlemapData({ doc, fileId }: UseBattlemapDataProps) {
     return () => wallsArray.unobserve(observer);
   }, [wallsArray]);
 
+  useEffect(() => {
+    const { syncRooms } = useBattlemapStore.getState();
+    const observer = () => {
+      const currentRooms = roomsArray.toArray();
+      setRooms(currentRooms);
+      syncRooms(currentRooms); // Sync to Zustand store for global access
+    };
+    roomsArray.observe(observer);
+    observer();
+    return () => roomsArray.unobserve(observer);
+  }, [roomsArray]);
+
   // Actions
   const updateSettings = (updates: Partial<BattlemapSettings>) => {
     doc.transact(() => {
@@ -137,11 +156,13 @@ export function useBattlemapData({ doc, fileId }: UseBattlemapDataProps) {
     texts,
     fogShapes,
     walls,
+    rooms,
     fogArray, // Return raw Y.Array for fog since it needs transactional updates often handled by tools
     tokensArray,
     drawingsArray,
     textsArray,
     wallsArray,
+    roomsArray,
     updateSettings,
     settingsRef,
   };

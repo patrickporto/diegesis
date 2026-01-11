@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import * as Y from "yjs";
 
 import { useBattlemapStore } from "../../stores/useBattlemapStore";
+import { ColorPicker } from "../ui/ColorPicker";
 import { DrawingShape } from "./types";
 
 interface PropertyEditorProps {
@@ -9,10 +10,16 @@ interface PropertyEditorProps {
 }
 
 export function PropertyEditor({ drawingsArray }: PropertyEditorProps) {
+  // HOOKS MUST BE AT TOP LEVEL
+  const strokeButtonRef = useRef<HTMLButtonElement>(null);
+  const fillButtonRef = useRef<HTMLButtonElement>(null);
+
   const selectedDrawingIds = useBattlemapStore((s) => s.selectedDrawingIds);
   const [selectedDrawing, setSelectedDrawing] = useState<DrawingShape | null>(
     null
   );
+  const [showStrokePicker, setShowStrokePicker] = useState(false);
+  const [showFillPicker, setShowFillPicker] = useState(false);
 
   // Sync with Yjs array finding the selected item
   useEffect(() => {
@@ -30,18 +37,6 @@ export function PropertyEditor({ drawingsArray }: PropertyEditorProps) {
       setSelectedDrawing(null);
     }
   }, [selectedDrawingIds, drawingsArray]);
-
-  // Subscribe to Yjs changes to update the editor if remote change happens?
-  // Ideally yes, but for now simple local state update on selection is okay.
-  // Actually, if we edit, we update Yjs, which updates drawingsArray, which triggers this useEffect?
-  // drawingsArray.toArray() creates a new array.
-  // So we need to be careful not to loop updates if local state matches remote.
-  // But Yjs array observation is separate in BattlemapData.
-  // Here we just re-read when dependencies change. `drawingsArray` prop usually doesn't change ref unless parent re-renders.
-  // We might want `useBattlemapData`'s `drawings` map instead for faster lookup?
-  // But `drawingsArray` is what we observe for changes in parent.
-  // Let's rely on parent passing stable drawingsArray ref and maybe an observer trigger if needed.
-  // For now, let's just use the `drawingsArray` directly for writes.
 
   if (!selectedDrawing) return null;
 
@@ -65,52 +60,46 @@ export function PropertyEditor({ drawingsArray }: PropertyEditorProps) {
   };
 
   return (
-    <div className="absolute top-4 right-4 z-[100] bg-slate-800/90 backdrop-blur-md border border-slate-700 rounded-lg shadow-xl p-4 w-64 animate-fade-in-up">
-      <div className="flex items-center justify-between mb-3 border-b border-slate-700 pb-2">
-        <h3 className="text-sm font-semibold text-slate-200">
-          Edit Properties{" "}
-          {selectedDrawingIds.length > 1 && `(${selectedDrawingIds.length})`}
-        </h3>
-        <button
-          onClick={() => useBattlemapStore.getState().setSelectedDrawingIds([])}
-          className="text-slate-400 hover:text-white"
-        >
-          <svg
-            className="w-4 h-4"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M6 18L18 6M6 6l12 12"
-            />
-          </svg>
-        </button>
-      </div>
-
+    <div className="h-full w-full overflow-y-auto p-4 space-y-4">
       <div className="space-y-3">
         {/* Stroke Color */}
         <div className="space-y-1">
-          <label className="text-xs text-slate-400">Stroke Color</label>
-          <div className="flex gap-2 items-center">
-            <input
-              type="color"
-              value={selectedDrawing.strokeColor || "#ff0000"}
-              onChange={(e) => handleChange("strokeColor", e.target.value)}
-              className="h-8 w-12 rounded bg-slate-700 cursor-pointer"
-            />
-            <span className="text-xs text-slate-300 font-mono">
-              {selectedDrawing.strokeColor || "#ff0000"}
-            </span>
+          <label className="text-xs text-slate-400 font-semibold uppercase tracking-wider">
+            Stroke Color
+          </label>
+          <div className="relative">
+            <button
+              ref={strokeButtonRef}
+              onClick={() => setShowStrokePicker(!showStrokePicker)}
+              className="w-full flex items-center gap-2 px-2 py-1.5 bg-slate-900 border border-slate-700 rounded hover:border-slate-600 transition-colors"
+            >
+              <div
+                className="w-6 h-6 rounded border border-slate-600"
+                style={{
+                  backgroundColor: selectedDrawing.strokeColor || "#ff0000",
+                }}
+              />
+              <span className="text-xs text-slate-300 font-mono flex-1 text-left">
+                {selectedDrawing.strokeColor || "#ff0000"}
+              </span>
+            </button>
+            {showStrokePicker && (
+              <ColorPicker
+                value={selectedDrawing.strokeColor || "#ff0000"}
+                onChange={(color) => {
+                  handleChange("strokeColor", color);
+                  setShowStrokePicker(false);
+                }}
+                onClose={() => setShowStrokePicker(false)}
+                anchorRef={strokeButtonRef}
+              />
+            )}
           </div>
         </div>
 
         {/* Stroke Width */}
         <div className="space-y-1">
-          <label className="text-xs text-slate-400">
+          <label className="text-xs text-slate-400 font-semibold uppercase tracking-wider">
             Stroke Width ({selectedDrawing.strokeWidth || 2}px)
           </label>
           <input
@@ -131,22 +120,42 @@ export function PropertyEditor({ drawingsArray }: PropertyEditorProps) {
           selectedDrawing.type === "polygon") && (
           <>
             <div className="space-y-1">
-              <label className="text-xs text-slate-400">Fill Color</label>
-              <div className="flex gap-2 items-center">
-                <input
-                  type="color"
-                  value={selectedDrawing.fillColor || "#ffffff"}
-                  onChange={(e) => handleChange("fillColor", e.target.value)}
-                  className="h-8 w-12 rounded bg-slate-700 cursor-pointer"
-                />
-                <span className="text-xs text-slate-300 font-mono">
-                  {selectedDrawing.fillColor || "#ffffff"}
-                </span>
+              <label className="text-xs text-slate-400 font-semibold uppercase tracking-wider">
+                Fill Color
+              </label>
+              <div className="relative">
+                <button
+                  ref={fillButtonRef}
+                  onClick={() => setShowFillPicker(!showFillPicker)}
+                  className="w-full flex items-center gap-2 px-2 py-1.5 bg-slate-900 border border-slate-700 rounded hover:border-slate-600 transition-colors"
+                >
+                  <div
+                    className="w-6 h-6 rounded border border-slate-600"
+                    style={{
+                      backgroundColor: selectedDrawing.fillColor || "#ffffff",
+                    }}
+                  />
+                  <span className="text-xs text-slate-300 font-mono flex-1 text-left">
+                    {selectedDrawing.fillColor || "#ffffff"}
+                  </span>
+                </button>
+                {showFillPicker && (
+                  <ColorPicker
+                    value={selectedDrawing.fillColor || "#ffffff"}
+                    onChange={(color) => {
+                      handleChange("fillColor", color);
+                      setShowFillPicker(false);
+                    }}
+                    onClose={() => setShowFillPicker(false)}
+                    anchorRef={fillButtonRef}
+                  />
+                )}
               </div>
             </div>
             <div className="space-y-1">
-              <label className="text-xs text-slate-400">
-                Fill Opacity ({selectedDrawing.fillAlpha ?? 0})
+              <label className="text-xs text-slate-400 font-semibold uppercase tracking-wider">
+                Fill Opacity (
+                {((selectedDrawing.fillAlpha ?? 0) * 100).toFixed(0)}%)
               </label>
               <input
                 type="range"
@@ -163,21 +172,50 @@ export function PropertyEditor({ drawingsArray }: PropertyEditorProps) {
           </>
         )}
 
+        {/* Blur */}
+        <div className="space-y-1">
+          <label className="text-xs text-slate-400 font-semibold uppercase tracking-wider">
+            Blur ({selectedDrawing.blur || 0}px)
+          </label>
+          <input
+            type="range"
+            min="0"
+            max="20"
+            value={selectedDrawing.blur || 0}
+            onChange={(e) => handleChange("blur", Number(e.target.value))}
+            className="w-full h-1 bg-slate-600 rounded-lg appearance-none cursor-pointer accent-sky-500"
+          />
+        </div>
+
+        {/* Global Opacity */}
+        <div className="space-y-1">
+          <label className="text-xs text-slate-400 font-semibold uppercase tracking-wider">
+            Opacity ({((selectedDrawing.opacity ?? 1) * 100).toFixed(0)}%)
+          </label>
+          <input
+            type="range"
+            min="0"
+            max="1"
+            step="0.1"
+            value={selectedDrawing.opacity ?? 1}
+            onChange={(e) => handleChange("opacity", Number(e.target.value))}
+            className="w-full h-1 bg-slate-600 rounded-lg appearance-none cursor-pointer accent-sky-500"
+          />
+        </div>
+
         {/* Text Specifics */}
         {selectedDrawing.type === "text" && (
-          <>
-            <div className="space-y-1">
-              <label className="text-xs text-slate-400">Font Size</label>
-              <input
-                type="number"
-                value={selectedDrawing.fontSize || 16}
-                onChange={(e) =>
-                  handleChange("fontSize", Number(e.target.value))
-                }
-                className="w-full px-2 py-1 bg-slate-900 border border-slate-700 rounded text-slate-200 text-sm"
-              />
-            </div>
-          </>
+          <div className="space-y-1">
+            <label className="text-xs text-slate-400 font-semibold uppercase tracking-wider">
+              Font Size
+            </label>
+            <input
+              type="number"
+              value={selectedDrawing.fontSize || 16}
+              onChange={(e) => handleChange("fontSize", Number(e.target.value))}
+              className="w-full px-2 py-1 bg-slate-900 border border-slate-700 rounded text-slate-200 text-sm"
+            />
+          </div>
         )}
       </div>
     </div>

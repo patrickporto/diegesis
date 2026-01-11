@@ -6,6 +6,7 @@ import {
   DEFAULT_SETTINGS,
   DrawingPath,
   DrawingType,
+  FogRoom,
   FogShape,
   FogToolMode,
   FogToolType,
@@ -33,6 +34,17 @@ interface BattlemapState {
   selectedTokenIds: string[];
   isDraggingToken: boolean;
   isDraggingDrawing: boolean;
+  activeRoomId: string | null; // New
+
+  // Drawing Tool Properties
+  drawingProps: {
+    strokeColor: string;
+    strokeWidth: number;
+    fillColor: string;
+    fillAlpha: number;
+    blur: number;
+    opacity: number;
+  };
 
   // Current drawing path (transient, not synced)
   currentPath: number[];
@@ -43,6 +55,7 @@ interface BattlemapState {
   drawings: DrawingPath[];
   texts: TextAnnotation[];
   walls: Wall[];
+  rooms: FogRoom[];
   settings: BattlemapSettings;
 
   // Actions - Tool State
@@ -61,10 +74,12 @@ interface BattlemapState {
   setCurrentPath: (path: number[]) => void;
   appendToCurrentPath: (x: number, y: number) => void;
   clearCurrentPath: () => void;
+  setActiveRoomId: (id: string | null) => void; // New action
   setSelectedWall: (id: string | null) => void;
   setSelectedSegments: (ids: string[]) => void;
   setSelectedTokens: (ids: string[]) => void;
   setIsDraggingToken: (dragging: boolean) => void;
+  setDrawingProps: (updates: Partial<BattlemapState["drawingProps"]>) => void;
 
   // Actions - Yjs Sync (called by observers)
   syncFogShapes: (shapes: FogShape[]) => void;
@@ -72,12 +87,31 @@ interface BattlemapState {
   syncDrawings: (drawings: DrawingPath[]) => void;
   syncTexts: (texts: TextAnnotation[]) => void;
   syncWalls: (walls: Wall[]) => void;
+  syncRooms: (rooms: FogRoom[]) => void;
   syncSettings: (settings: BattlemapSettings) => void;
 
   // Fog Actions (with Yjs transaction)
   addFogShape: (
     shape: FogShape,
     fogArray: Y.Array<FogShape>,
+    doc: Y.Doc
+  ) => void;
+
+  // Room Actions
+  toggleRoom: (
+    roomId: string,
+    roomsArray: Y.Array<FogRoom>,
+    doc: Y.Doc
+  ) => void;
+  renameRoom: (
+    roomId: string,
+    newName: string,
+    roomsArray: Y.Array<FogRoom>,
+    doc: Y.Doc
+  ) => void;
+  deleteRoom: (
+    roomId: string,
+    roomsArray: Y.Array<FogRoom>,
     doc: Y.Doc
   ) => void;
 }
@@ -99,7 +133,18 @@ export const useBattlemapStore = create<BattlemapState>((set) => ({
   selectedTokenIds: [],
   isDraggingToken: false,
   isDraggingDrawing: false, // New
+  activeRoomId: null,
   currentPath: [],
+
+  // Drawing Properties
+  drawingProps: {
+    strokeColor: "#ff0000",
+    strokeWidth: 2,
+    fillColor: "#ffffff",
+    fillAlpha: 0.3,
+    blur: 0,
+    opacity: 1,
+  },
 
   // Initial State - Synced
   fogShapes: [],
@@ -107,6 +152,7 @@ export const useBattlemapStore = create<BattlemapState>((set) => ({
   drawings: [],
   texts: [],
   walls: [],
+  rooms: [],
   settings: DEFAULT_SETTINGS,
 
   // Tool Actions
@@ -136,10 +182,13 @@ export const useBattlemapStore = create<BattlemapState>((set) => ({
   appendToCurrentPath: (x, y) =>
     set((state) => ({ currentPath: [...state.currentPath, x, y] })),
   clearCurrentPath: () => set({ currentPath: [] }),
+  setActiveRoomId: (id) => set({ activeRoomId: id }),
   setSelectedWall: (id) => set({ selectedWallId: id }),
   setSelectedSegments: (ids) => set({ selectedSegmentIds: ids }),
   setSelectedTokens: (ids) => set({ selectedTokenIds: ids }),
   setIsDraggingToken: (dragging) => set({ isDraggingToken: dragging }),
+  setDrawingProps: (updates) =>
+    set((state) => ({ drawingProps: { ...state.drawingProps, ...updates } })),
 
   // Sync Actions (called by Yjs observers in component)
   syncFogShapes: (shapes) => set({ fogShapes: shapes }),
@@ -147,6 +196,7 @@ export const useBattlemapStore = create<BattlemapState>((set) => ({
   syncDrawings: (drawings) => set({ drawings: drawings }),
   syncTexts: (texts) => set({ texts: texts }),
   syncWalls: (walls) => set({ walls: walls }),
+  syncRooms: (rooms) => set({ rooms: rooms }),
   syncSettings: (settings) => set({ settings: settings }),
 
   // Fog Shape Creation
@@ -155,6 +205,43 @@ export const useBattlemapStore = create<BattlemapState>((set) => ({
       fogArray.push([shape]);
     });
     // State will update via Yjs observer -> syncFogShapes
+  },
+
+  // Room Actions
+  toggleRoom: (roomId, roomsArray, doc) => {
+    doc.transact(() => {
+      const rooms = roomsArray.toArray();
+      const index = rooms.findIndex((r) => r.id === roomId);
+      if (index !== -1) {
+        const room = rooms[index];
+        const updated = { ...room, isRevealed: !room.isRevealed };
+        roomsArray.delete(index, 1);
+        roomsArray.insert(index, [updated]);
+      }
+    });
+  },
+
+  renameRoom: (roomId, newName, roomsArray, doc) => {
+    doc.transact(() => {
+      const rooms = roomsArray.toArray();
+      const index = rooms.findIndex((r) => r.id === roomId);
+      if (index !== -1) {
+        const room = rooms[index];
+        const updated = { ...room, name: newName };
+        roomsArray.delete(index, 1);
+        roomsArray.insert(index, [updated]);
+      }
+    });
+  },
+
+  deleteRoom: (roomId, roomsArray, doc) => {
+    doc.transact(() => {
+      const rooms = roomsArray.toArray();
+      const index = rooms.findIndex((r) => r.id === roomId);
+      if (index !== -1) {
+        roomsArray.delete(index, 1);
+      }
+    });
   },
 }));
 
