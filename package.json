@@ -71,10 +71,12 @@
     "@commitlint/cli": "^17.6.1",
     "@commitlint/config-conventional": "^17.6.1",
     "@commitlint/prompt-cli": "^17.6.1",
+    "@playwright/test": "^1.57.0",
     "@tailwindcss/postcss": "^4.1.18",
     "@testing-library/dom": "^10.4.1",
     "@testing-library/jest-dom": "^5.16.5",
     "@testing-library/react": "^16.3.1",
+    "@types/bun": "latest",
     "@types/node": "^18.16.3",
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",
@@ -107,5 +109,6 @@
     "vite-tsconfig-paths": "^6.0.3",
     "vitest": "^4.0.16",
     "vitest-webgl-canvas-mock": "^1.1.0"
-  }
+  },
+  "module": "index.ts"
 }
