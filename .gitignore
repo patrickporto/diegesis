@@ -10,3 +10,6 @@ coverage
 .env
 
 .playwright-mcp
+
+*.log
+*.txt
