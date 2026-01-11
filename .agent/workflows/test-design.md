@@ -2,7 +2,41 @@
 description: Design test coverage strategy with test-architect guidance
 ---
 
-Plan comprehensive test coverage strategy for new or existing code using the test-architect subagent.
+Plan comprehensive test coverage strategy for new or existing code, incorporating scenarios documented in openspec\changes.
+
+## Phase 0: Feature Scenario Analysis
+
+Before planning tests, analyze documented scenarios:
+
+Read and extract test scenarios from openspec\changes:
+
+- Review all feature change documentation files
+- Identify documented user interactions and flows
+- Extract expected component behaviors and states
+- Note breaking UI changes that require regression tests
+- Identify deprecated features requiring backward compatibility tests
+- Map documented edge cases and error states
+
+Extract from Feature Specs:
+
+- Component specifications and props contracts
+- User interaction patterns and expected outcomes
+- State management behaviors
+- Form validations and error messages
+- Accessibility requirements
+- Responsive behavior and breakpoints
+- Feature flags and conditional rendering
+
+Create scenario mapping:
+
+```
+#### Scenario: [Action description]
+- **Given** [initial state/context]
+- **And** [additional context]
+- **When** [user action/interaction]
+- **Then** [expected UI outcome]
+- **And** [additional expected behavior]
+```
 
 ## Phase 1: Understand the Target
 
