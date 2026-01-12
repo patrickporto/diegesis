@@ -5,6 +5,14 @@ import { describe, expect, it, vi } from "vitest";
 
 import App from "./App";
 
+// IMPORTANT: All vi.mock calls must be at the top level BEFORE any imports
+// to ensure they are hoisted properly by Vitest
+
+// Mock URLSync component to avoid routing issues in tests
+vi.mock("@/components/URLSync", () => ({
+  URLSync: () => null,
+}));
+
 // Mock matchMedia for Mantine/BlockNote
 Object.defineProperty(window, "matchMedia", {
   writable: true,

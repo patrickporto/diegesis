@@ -7,19 +7,18 @@ import { DrawingPath, DrawingText } from "./types";
 
 interface TextInputOverlayProps {
   viewport: Viewport | null;
-  drawings: DrawingPath[];
   drawingsArray: Y.Array<DrawingPath>;
   doc: Y.Doc;
 }
 
 export const TextInputOverlay: React.FC<TextInputOverlayProps> = ({
   viewport,
-  drawings,
   drawingsArray,
   doc,
 }) => {
   const editingItemId = useBattlemapStore((s) => s.editingItemId);
   const setEditingItemId = useBattlemapStore((s) => s.setEditingItemId);
+  const drawings = useBattlemapStore((s) => s.drawings);
   const [localValue, setLocalValue] = useState("");
   const inputRef = useRef<HTMLTextAreaElement>(null);
 

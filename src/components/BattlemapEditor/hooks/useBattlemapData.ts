@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo } from "react";
 import * as Y from "yjs";
 
 import { useBattlemapStore } from "../../../stores/useBattlemapStore";
@@ -18,8 +18,13 @@ interface UseBattlemapDataProps {
   fileId: string;
 }
 
+/**
+ * Hook that manages Yjs data structures and syncs them to Zustand store.
+ * This is the single source of truth for Yjs integration.
+ * All state is managed in Zustand via sync actions.
+ */
 export function useBattlemapData({ doc, fileId }: UseBattlemapDataProps) {
-  // Yjs Structures
+  // Yjs Structures - these are stable references that persist for component lifetime
   const settingsMap = useMemo(
     () =>
       doc.getMap<BattlemapSettings[keyof BattlemapSettings]>(
@@ -58,29 +63,16 @@ export function useBattlemapData({ doc, fileId }: UseBattlemapDataProps) {
     [doc, fileId]
   );
 
-  // Local React State
-  const [settings, setSettings] = useState<BattlemapSettings>(DEFAULT_SETTINGS);
-  const [tokens, setTokens] = useState<Token[]>([]);
-  const [drawings, setDrawings] = useState<DrawingPath[]>([]);
-  const [texts, setTexts] = useState<TextAnnotation[]>([]);
-  const [fogShapes, setFogShapes] = useState<FogShape[]>([]);
-  const [walls, setWalls] = useState<Wall[]>([]);
-  const [rooms, setRooms] = useState<FogRoom[]>([]);
-
-  // Refs for current values (to avoid stale closures in effects if needed)
-  const settingsRef = useRef(settings);
+  // Sync Settings
   useEffect(() => {
-    settingsRef.current = settings;
-  }, [settings]);
-
-  // Sync Logics
-  useEffect(() => {
+    const { syncSettings } = useBattlemapStore.getState();
     const loadSettings = () => {
       const loaded: Partial<BattlemapSettings> = {};
       settingsMap.forEach((value, key) => {
         (loaded as Record<string, unknown>)[key] = value;
       });
-      setSettings({ ...DEFAULT_SETTINGS, ...loaded });
+      // Merge loaded settings with defaults to ensure all required fields are present
+      syncSettings({ ...DEFAULT_SETTINGS, ...loaded } as BattlemapSettings);
     };
 
     settingsMap.observe(loadSettings);
@@ -88,59 +80,61 @@ export function useBattlemapData({ doc, fileId }: UseBattlemapDataProps) {
     return () => settingsMap.unobserve(loadSettings);
   }, [settingsMap]);
 
+  // Sync Tokens
   useEffect(() => {
-    const observer = () => setTokens(tokensArray.toArray());
+    const { syncTokens } = useBattlemapStore.getState();
+    const observer = () => syncTokens(tokensArray.toArray());
     tokensArray.observe(observer);
     observer();
     return () => tokensArray.unobserve(observer);
   }, [tokensArray]);
 
+  // Sync Drawings
   useEffect(() => {
-    const observer = () => setDrawings(drawingsArray.toArray());
+    const { syncDrawings } = useBattlemapStore.getState();
+    const observer = () => syncDrawings(drawingsArray.toArray());
     drawingsArray.observe(observer);
     observer();
     return () => drawingsArray.unobserve(observer);
   }, [drawingsArray]);
 
+  // Sync Texts
   useEffect(() => {
-    const observer = () => setTexts(textsArray.toArray());
+    const { syncTexts } = useBattlemapStore.getState();
+    const observer = () => syncTexts(textsArray.toArray());
     textsArray.observe(observer);
     observer();
     return () => textsArray.unobserve(observer);
   }, [textsArray]);
 
+  // Sync Fog Shapes
   useEffect(() => {
-    const observer = () => setFogShapes(fogArray.toArray());
+    const { syncFogShapes } = useBattlemapStore.getState();
+    const observer = () => syncFogShapes(fogArray.toArray());
     fogArray.observe(observer);
     observer();
     return () => fogArray.unobserve(observer);
   }, [fogArray]);
 
+  // Sync Walls
   useEffect(() => {
     const { syncWalls } = useBattlemapStore.getState();
-    const observer = () => {
-      const currentWalls = wallsArray.toArray();
-      setWalls(currentWalls);
-      syncWalls(currentWalls); // Sync to Zustand store for global access
-    };
+    const observer = () => syncWalls(wallsArray.toArray());
     wallsArray.observe(observer);
     observer();
     return () => wallsArray.unobserve(observer);
   }, [wallsArray]);
 
+  // Sync Rooms
   useEffect(() => {
     const { syncRooms } = useBattlemapStore.getState();
-    const observer = () => {
-      const currentRooms = roomsArray.toArray();
-      setRooms(currentRooms);
-      syncRooms(currentRooms); // Sync to Zustand store for global access
-    };
+    const observer = () => syncRooms(roomsArray.toArray());
     roomsArray.observe(observer);
     observer();
     return () => roomsArray.unobserve(observer);
   }, [roomsArray]);
 
-  // Actions
+  // Update Settings Action
   const updateSettings = (updates: Partial<BattlemapSettings>) => {
     doc.transact(() => {
       Object.entries(updates).forEach(([key, value]) => {
@@ -150,20 +144,15 @@ export function useBattlemapData({ doc, fileId }: UseBattlemapDataProps) {
   };
 
   return {
-    settings,
-    tokens,
-    drawings,
-    texts,
-    fogShapes,
-    walls,
-    rooms,
-    fogArray, // Return raw Y.Array for fog since it needs transactional updates often handled by tools
+    // Raw Y.Arrays for direct access when needed (e.g., transactions)
+    fogArray,
     tokensArray,
     drawingsArray,
     textsArray,
     wallsArray,
     roomsArray,
+    settingsMap,
+    // Settings action
     updateSettings,
-    settingsRef,
   };
 }

@@ -12,6 +12,11 @@ const reactCompilerConfig = {
 // https://vitejs.dev/config/
 export default defineConfig({
   base: "/diegesis/",
+  resolve: {
+    alias: {
+      "@": "/src",
+    },
+  },
   plugins: [
     react({
       babel: {

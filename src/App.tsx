@@ -2,23 +2,23 @@ import { GoogleOAuthProvider } from "@react-oauth/google";
 import { useState } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
 
-import { AppSidebar } from "@/components/AppSidebar";
-import { Editor } from "@/components/Editor";
-import { OfflineBanner } from "@/components/OfflineBanner";
-import { OmniSearch } from "@/components/OmniSearch";
-import { Sidebar } from "@/components/Sidebar";
-import { WelcomeModal } from "@/components/WelcomeModal";
+import { AppSidebar } from "./components/AppSidebar";
+import { Editor } from "./components/Editor";
+import { OfflineBanner } from "./components/OfflineBanner";
+import { OmniSearch } from "./components/OmniSearch";
+import { Sidebar } from "./components/Sidebar";
+import { WelcomeModal } from "./components/WelcomeModal";
 import {
   FileSystemProvider,
   useFileSystem,
-} from "@/contexts/FileSystemContext";
-import { NotesProvider } from "@/contexts/NotesContext";
-import { RealmProvider } from "@/contexts/RealmContext";
+} from "./contexts/FileSystemContext";
+import { NotesProvider } from "./contexts/NotesContext";
+import { RealmProvider } from "./contexts/RealmContext";
 import {
   GoogleSyncProvider,
   OfflineSyncProvider,
   useSync,
-} from "@/contexts/SyncContext";
+} from "./contexts/SyncContext";
 
 const CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 
@@ -339,7 +339,7 @@ function MainLayout() {
 
 import { Route, Routes } from "react-router-dom";
 
-import { URLSync } from "@/components/URLSync";
+import { URLSync } from "./components/URLSync";
 
 function App() {
   // If no CLIENT_ID, run in offline-only mode (no Google Drive sync)

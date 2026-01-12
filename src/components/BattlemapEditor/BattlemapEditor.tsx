@@ -235,7 +235,11 @@ export function BattlemapEditor({ fileId, doc }: BattlemapEditorProps) {
 
   const togglePanel = useCallback(
     (id: string, force?: boolean) => {
-      const newState = force !== undefined ? force : !openPanels[id];
+      const currentState = openPanels[id];
+      const newState = force !== undefined ? force : !currentState;
+
+      if (currentState === newState) return;
+
       setOpenPanels((prev) => ({
         ...prev,
         [id]: newState,
@@ -292,18 +296,16 @@ export function BattlemapEditor({ fileId, doc }: BattlemapEditorProps) {
 
   // 2. Data
   const {
-    settings,
     updateSettings,
-    tokens,
     tokensArray,
-    drawings,
     drawingsArray,
-    fogShapes,
     fogArray,
-    walls,
     wallsArray,
     roomsArray,
   } = useBattlemapData({ doc, fileId });
+
+  // Get state from Zustand store
+  const settings = useBattlemapStore((s) => s.settings);
 
   // Enable keyboard shortcuts
   useBattlemapHotkeys();
@@ -494,8 +496,6 @@ export function BattlemapEditor({ fileId, doc }: BattlemapEditorProps) {
 
   // 5. Renderers
   useTokenRenderer({
-    tokens,
-    settings,
     layerContainersRef,
     doc,
     tokensArray,
@@ -515,9 +515,9 @@ export function BattlemapEditor({ fileId, doc }: BattlemapEditorProps) {
     updateSettings,
   });
 
-  useFogRenderer({ fogShapes, layerContainersRef, app, isReady, settings });
-  useDrawingRenderer({ drawings, layerContainersRef, isReady });
-  useGridRenderer({ settings, layerContainersRef, app, isReady });
+  useFogRenderer({ layerContainersRef, app, isReady });
+  useDrawingRenderer({ layerContainersRef, isReady });
+  useGridRenderer({ layerContainersRef, app, isReady });
   // Helper to render a specific panel content (inner)
   const renderInnerPanelContent = (
     id: string,
@@ -668,7 +668,6 @@ export function BattlemapEditor({ fileId, doc }: BattlemapEditorProps) {
   });
 
   useWallRenderer({
-    walls,
     layerContainersRef,
     isReady,
     layersCheck: settings.layers?.length || 0,
@@ -907,7 +906,6 @@ export function BattlemapEditor({ fileId, doc }: BattlemapEditorProps) {
 
         <TextInputOverlay
           viewport={viewport}
-          drawings={drawings}
           drawingsArray={drawingsArray}
           doc={doc}
         />

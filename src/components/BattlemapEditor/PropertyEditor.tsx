@@ -65,7 +65,7 @@ export function PropertyEditor({ drawingsArray }: PropertyEditorProps) {
         {/* Stroke Color */}
         <div className="space-y-1">
           <label className="text-xs text-slate-400 font-semibold uppercase tracking-wider">
-            Stroke Color
+            {selectedDrawing.type === "text" ? "Text Color" : "Stroke Color"}
           </label>
           <div className="relative">
             <button

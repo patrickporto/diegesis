@@ -288,7 +288,7 @@ export function TokenManagerSidebar({
     setEditingFolderName(folder.name);
   };
 
-  const handleFolderDragOver = (e: React.DragEvent, folderId: string) => {
+  const handleFolderDragOver = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
     e.dataTransfer.dropEffect = "move";
@@ -627,7 +627,7 @@ export function TokenManagerSidebar({
                   key={folder.id}
                   className="relative group"
                   onContextMenu={(e) => handleFolderContextMenu(e, folder)}
-                  onDragOver={(e) => handleFolderDragOver(e, folder.id)}
+                  onDragOver={(e) => handleFolderDragOver(e)}
                   onDrop={(e) => handleFolderDrop(e, folder.id)}
                 >
                   <button

@@ -1,12 +1,12 @@
 import { Application, Graphics } from "pixi.js";
-import { Viewport } from "pixi-viewport";
+import type { Viewport } from "pixi-viewport";
 import { useCallback, useEffect, useRef } from "react";
 import { uuidv7 } from "uuidv7";
 import * as Y from "yjs";
 
 import { useBattlemapStore } from "../../../stores/useBattlemapStore";
 import { GridRenderer } from "../GridRenderer";
-import {
+import type {
   BattlemapSettings,
   ContextMenuAction,
   Wall,

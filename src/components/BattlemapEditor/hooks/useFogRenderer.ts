@@ -8,25 +8,23 @@ import {
 import { useCallback, useEffect, useRef } from "react";
 
 import { useBattlemapStore } from "../../../stores/useBattlemapStore";
-import { BattlemapSettings, FogShape } from "../types";
+import { FogShape } from "../types";
 
 interface UseFogRendererProps {
-  fogShapes: FogShape[];
   layerContainersRef: React.MutableRefObject<Map<string, Container>>;
   app: Application | null;
   isReady: boolean;
-  settings: BattlemapSettings;
 }
 
 const FOG_SIZE = 2048;
 
 export function useFogRenderer({
-  fogShapes,
   layerContainersRef,
   app,
   isReady,
-  settings,
 }: UseFogRendererProps) {
+  const fogShapes = useBattlemapStore((s) => s.fogShapes);
+  const settings = useBattlemapStore((s) => s.settings);
   const maskTextureRef = useRef<RenderTexture | null>(null);
   const fogTextureRef = useRef<RenderTexture | null>(null);
   const fogSpriteRef = useRef<Sprite | null>(null);

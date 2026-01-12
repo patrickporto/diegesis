@@ -77,6 +77,15 @@ export function useBattlemapInteractions({
   const appendToCurrentPath = useBattlemapStore((s) => s.appendToCurrentPath);
   const currentPath = useBattlemapStore((s) => s.currentPath);
   const clearCurrentPath = useBattlemapStore((s) => s.clearCurrentPath);
+  const selectedDrawingIds = useBattlemapStore((s) => s.selectedDrawingIds);
+  const setSelectedDrawingIds = useBattlemapStore(
+    (s) => s.setSelectedDrawingIds
+  );
+  const setIsDraggingDrawing = useBattlemapStore((s) => s.setIsDraggingDrawing);
+  const isDraggingDrawing = useBattlemapStore((s) => s.isDraggingDrawing);
+  const drawingProps = useBattlemapStore((s) => s.drawingProps);
+  const setActiveTool = useBattlemapStore((s) => s.setActiveTool);
+  const setEditingItemId = useBattlemapStore((s) => s.setEditingItemId);
 
   // Keyboard events for Space panning
   useEffect(() => {
@@ -96,7 +105,7 @@ export function useBattlemapInteractions({
         enableTemporaryPan();
 
         if (viewport) {
-          viewport.plugins.resume("drag");
+          viewport.plugins?.resume("drag");
         }
       }
 
@@ -166,9 +175,9 @@ export function useBattlemapInteractions({
       isSpacePressedRef.current ||
       isMiddlePressedRef.current
     ) {
-      viewport.plugins.resume("drag");
+      viewport.plugins?.resume("drag");
     } else {
-      viewport.plugins.pause("drag");
+      viewport.plugins?.pause("drag");
     }
   }, [activeTool, viewport]);
 
@@ -182,18 +191,120 @@ export function useBattlemapInteractions({
       g.alpha = 1;
       g.filters = null;
 
+      const {
+        activeTool,
+        fogTool,
+        drawTool,
+        fogMode,
+        brushSize,
+        isDrawing,
+        currentPath,
+        drawingProps,
+        selectedDrawingIds,
+      } = useBattlemapStore.getState();
+
       if (activeTool === "select") {
         g.clear();
-        g.visible = false;
 
-        // Marquee Selection Preview - only show when button pressed and no objects selected
+        // 1. Draw Selection Bounds
+        if (selectedDrawingIds.length > 0) {
+          // We need to calculate bounds of all selected items
+          // Since drawingsArray is Y.Array, we can access it directly
+          const items = drawingsArray.toArray();
+          const selectedItems = items.filter((d) =>
+            selectedDrawingIds.includes(d.id)
+          );
+
+          if (selectedItems.length > 0) {
+            let minX = Infinity,
+              minY = Infinity,
+              maxX = -Infinity,
+              maxY = -Infinity;
+
+            selectedItems.forEach((d) => {
+              let dMinX = 0,
+                dMaxX = 0,
+                dMinY = 0,
+                dMaxY = 0;
+              if (d.type === "rect" || d.type === "ellipse") {
+                dMinX = d.x;
+                dMaxX = d.x + d.width;
+                dMinY = d.y;
+                dMaxY = d.y + d.height;
+              } else if (d.type === "text") {
+                const fs = d.fontSize || 24;
+                const approxW = d.width || (d.content?.length || 0) * fs * 0.6;
+                const approxH = fs * 1.2;
+                dMinX = d.x;
+                dMaxX = d.x + approxW;
+                dMinY = d.y;
+                dMaxY = d.y + approxH;
+              } else if (d.type === "polygon" || d.type === "brush") {
+                // Compute bounds
+                const pts = d.points || [];
+                if (pts.length > 0) {
+                  let mx = Infinity,
+                    my = Infinity,
+                    Mx = -Infinity,
+                    My = -Infinity;
+                  for (let i = 0; i < pts.length; i += 2) {
+                    mx = Math.min(mx, pts[i]);
+                    Mx = Math.max(Mx, pts[i]);
+                    my = Math.min(my, pts[i + 1]);
+                    My = Math.max(My, pts[i + 1]);
+                  }
+                  dMinX = mx;
+                  dMaxX = Mx;
+                  dMinY = my;
+                  dMaxY = My;
+                }
+              }
+
+              minX = Math.min(minX, dMinX);
+              maxX = Math.max(maxX, dMaxX);
+              minY = Math.min(minY, dMinY);
+              maxY = Math.max(maxY, dMaxY);
+            });
+
+            if (minX !== Infinity) {
+              // Draw selection box
+              g.rect(minX, minY, maxX - minX, maxY - minY);
+              g.stroke({ color: 0x00aaff, width: 2, alpha: 1 });
+              g.fill({ color: 0x00aaff, alpha: 0.1 });
+
+              // Draw Resize Handles (if only 1 item selected and resizable)
+              if (selectedItems.length === 1) {
+                const item = selectedItems[0];
+                if (
+                  item.type === "rect" ||
+                  item.type === "ellipse" ||
+                  item.type === "text"
+                ) {
+                  const handleSize = 8 / ((viewport as any)?.scaled || 1);
+                  const half = handleSize / 2;
+                  const corners = [
+                    { x: minX, y: minY }, // TL
+                    { x: maxX, y: minY }, // TR
+                    { x: minX, y: maxY }, // BL
+                    { x: maxX, y: maxY }, // BR
+                  ];
+
+                  corners.forEach((c) => {
+                    g.rect(c.x - half, c.y - half, handleSize, handleSize);
+                    g.fill({ color: 0xffffff, alpha: 1 });
+                    g.stroke({ color: 0x00aaff, width: 1, alpha: 1 });
+                  });
+                }
+              }
+            }
+          }
+        }
+
+        // Marquee Selection Preview
         if (marqueeStartRef.current && isSelectButtonPressedRef.current) {
-          const { selectedDrawingIds } = useBattlemapStore.getState();
           if (selectedDrawingIds.length === 0) {
             const startX = marqueeStartRef.current.x;
             const startY = marqueeStartRef.current.y;
-            // Use raw viewport local for end point (x,y passed to updatePreview are viewport local)
-            // normalize
             const minX = Math.min(startX, x);
             const minY = Math.min(startY, y);
             const w = Math.abs(x - startX);
@@ -202,7 +313,6 @@ export function useBattlemapInteractions({
             g.rect(minX, minY, w, h);
             g.fill({ color: 0x00aaff, alpha: 0.2 });
             g.stroke({ color: 0x00aaff, width: 1, alpha: 0.8 });
-            g.visible = true;
           }
         }
         return;
@@ -226,22 +336,15 @@ export function useBattlemapInteractions({
             alpha: strokeAlpha,
           });
         } else if (fogTool === "brush") {
-          // BRUSH: Show circle cursor (hover) or brushed path (drawing)
           g.circle(x, y, brushSize / 2);
-          g.fill({ color: fillColor, alpha: 0.3 }); // Lighter fill for cursor
+          g.fill({ color: fillColor, alpha: 0.3 });
           g.stroke({ color: strokeColor, width: 1, alpha: strokeAlpha });
 
-          // If drawing, show the full path so far?
-          // Actually, brush path is complex to preview fully efficiently if long.
-          // But we can show the current stroke if we want.
-          // For now, let's just show the cursor.
-          // If we want to show the stroke trail:
           if (isDrawing && currentPath.length >= 2) {
             g.moveTo(currentPath[0], currentPath[1]);
             for (let i = 2; i < currentPath.length; i += 2) {
               g.lineTo(currentPath[i], currentPath[i + 1]);
             }
-            // Draw line to current pos
             g.lineTo(x, y);
             g.stroke({
               width: brushSize,
@@ -252,7 +355,6 @@ export function useBattlemapInteractions({
             });
           }
         } else if (fogTool === "grid") {
-          // GRID: Highlight cell using generic getCellShape
           const shape = GridRenderer.getCellShape(
             x,
             y,
@@ -277,11 +379,9 @@ export function useBattlemapInteractions({
             });
           }
         } else if (isDrawing) {
-          // RECT / ELLIPSE / POLYGON (Drawing State)
           if (fogTool === "rect") {
             const startX = currentPath[0];
             const startY = currentPath[1];
-            // Normalize preview
             const rectX = Math.min(startX, x);
             const rectY = Math.min(startY, y);
             const rectW = Math.abs(x - startX);
@@ -299,10 +399,6 @@ export function useBattlemapInteractions({
             const startY = currentPath[1];
             const width = x - startX;
             const height = y - startY;
-
-            // Ellipse is usually defined by center and radius in Pixi 8?
-            // Or center X, center Y, radius X, radius Y
-            // x + width/2 is the center.
             const centerX = startX + width / 2;
             const centerY = startY + height / 2;
             const radiusX = Math.abs(width / 2);
@@ -321,13 +417,13 @@ export function useBattlemapInteractions({
               for (let i = 2; i < currentPath.length; i += 2) {
                 g.lineTo(currentPath[i], currentPath[i + 1]);
               }
-              g.lineTo(x, y); // Dynamic line to cursor
+              g.lineTo(x, y);
               g.stroke({
                 color: strokeColor,
                 width: strokeWidth,
                 alpha: strokeAlpha,
               });
-              g.fill({ color: fillColor, alpha: 0.2 }); // Light fill to show potential shape
+              g.fill({ color: fillColor, alpha: 0.2 });
             }
           }
         }
@@ -339,9 +435,8 @@ export function useBattlemapInteractions({
           fillAlpha,
           opacity,
           blur,
-        } = useBattlemapStore.getState().drawingProps;
+        } = drawingProps;
 
-        // Apply global properties to preview
         g.alpha = opacity ?? 1;
         if (blur && blur > 0) {
           const blurFilter = new BlurFilter();
@@ -352,7 +447,6 @@ export function useBattlemapInteractions({
         }
 
         if (drawTool === "brush") {
-          // Brush Preview
           g.circle(x, y, (strokeWidth || 2) / 2);
           g.fill({ color: strokeColor, alpha: 1 });
           if (isDrawing && currentPath.length >= 2) {
@@ -402,22 +496,19 @@ export function useBattlemapInteractions({
             }
             g.lineTo(x, y);
             g.stroke({ color: strokeColor, width: strokeWidth || 2, alpha: 1 });
-            g.fill({ color: fillColor || 0xffffff, alpha: fillAlpha ?? 0.1 }); // Show fill preview
+            g.fill({ color: fillColor || 0xffffff, alpha: fillAlpha ?? 0.1 });
           }
         }
       }
     },
     [
-      activeTool,
-      fogTool,
-      drawTool,
-      fogMode,
-      brushSize,
-      isDrawing,
-      currentPath,
       settings.gridCellSize,
       settings.gridType,
+      settings.gridOffsetX,
+      settings.gridOffsetY,
       previewGraphicsRef,
+      drawingsArray, // Y.Array is stable ref
+      // Removed activeTool, fogTool, etc from dependencies
     ]
   );
 
@@ -425,34 +516,33 @@ export function useBattlemapInteractions({
     (e: PointerEvent) => {
       if (!viewport) return;
 
-      console.log("Canvas PointerDown:", {
-        button: e.button,
-        tool: activeTool,
-        clientX: e.clientX,
-        clientY: e.clientY,
-        offsetX: e.offsetX,
-        offsetY: e.offsetY,
-      });
+      // Allow middle button to pass through for drag (handled by mousedown listener)
+      if (e.button === 1) return;
+
+      const {
+        activeTool,
+        fogTool,
+        drawTool,
+        fogMode,
+        isDrawing,
+        setIsDrawing,
+        setCurrentPath,
+        appendToCurrentPath,
+        currentPath,
+        clearCurrentPath,
+        selectedDrawingIds,
+        setSelectedDrawingIds,
+      } = useBattlemapStore.getState();
 
       // Allow middle button to pass through for drag (handled by mousedown listener)
       if (e.button === 1) return;
 
-      // Handle Right Click (Context Menu)
-      if (e.button === 2) {
-        // Tokens context menu is handled by useTokenRenderer (Pixi interactions).
-        // TODO: Implement Drawing context menu here (using drawingsArray).
-        return;
-      }
-
-      // Tools only work with left button
-      if (isSpacePressedRef.current || e.button !== 0) return;
-
-      // Track left button press for select tool marquee visibility
-      if (activeTool === "select" && e.button === 0) {
-        isSelectButtonPressedRef.current = true;
-      }
-
-      const point = viewport.toLocal({ x: e.offsetX, y: e.offsetY });
+      const point = viewport.toLocal({
+        x: e.offsetX,
+        y: e.offsetY,
+        clientX: e.clientX,
+        clientY: e.clientY,
+      } as any);
       let { x, y } = point;
 
       // Snap logic (Magnetic Snap)
@@ -468,6 +558,98 @@ export function useBattlemapInteractions({
         const s = settings.gridCellSize;
         x = Math.round(x / s) * s;
         y = Math.round(y / s) * s;
+      }
+
+      // RIGHT CLICK -> Context Menu (handle before other button checks)
+      if (e.button === 2) {
+        e.preventDefault();
+        e.stopPropagation();
+
+        // Hit Test for Drawings
+        let hitId: string | null = null;
+        const items = drawingsArray.toArray();
+        for (let i = items.length - 1; i >= 0; i--) {
+          const d = items[i];
+          if (d.layer !== (settings.activeLayerId || "map")) continue;
+
+          let isHit = false;
+          if (d.type === "rect") {
+            if (
+              x >= d.x &&
+              x <= d.x + d.width &&
+              y >= d.y &&
+              y <= d.y + d.height
+            ) {
+              isHit = true;
+            }
+          } else if (d.type === "ellipse") {
+            const rx = d.width / 2;
+            const ry = d.height / 2;
+            const cx = d.x + rx;
+            const cy = d.y + ry;
+            if (
+              Math.pow(x - cx, 2) / Math.pow(rx, 2) +
+                Math.pow(y - cy, 2) / Math.pow(ry, 2) <=
+              1
+            ) {
+              isHit = true;
+            }
+          } else if (d.type === "brush" || d.type === "polygon") {
+            // Simplified bounding box hit for paths
+            let minX = Infinity,
+              minY = Infinity,
+              maxX = -Infinity,
+              maxY = -Infinity;
+            const pts = d.points;
+            for (let j = 0; j < pts.length; j += 2) {
+              minX = Math.min(minX, pts[j]);
+              maxX = Math.max(maxX, pts[j]);
+              minY = Math.min(minY, pts[j + 1]);
+              maxY = Math.max(maxY, pts[j + 1]);
+            }
+            if (x >= minX && x <= maxX && y >= minY && y <= maxY) {
+              isHit = true;
+            }
+          }
+
+          if (isHit) {
+            hitId = d.id;
+            break; // Found top-most
+          }
+        }
+
+        const actions: ContextMenuAction[] = [];
+        if (hitId) {
+          actions.push({
+            id: "delete",
+            label: "Delete",
+            onClick: () => {
+              const items = drawingsArray.toArray();
+              const idx = items.findIndex((d) => d.id === hitId);
+              if (idx !== -1) drawingsArray.delete(idx, 1);
+            },
+            danger: true,
+          });
+        } else {
+          actions.push({
+            id: "reset-view",
+            label: "Reset View",
+            onClick: () => viewport?.setZoom(1),
+          });
+        }
+
+        if (actions.length > 0) {
+          onOpenContextMenu(e.clientX, e.clientY, actions);
+        }
+        return;
+      }
+
+      // Tools only work with left button
+      if (isSpacePressedRef.current || e.button !== 0) return;
+
+      // Track left button press for select tool marquee visibility
+      if (e.button === 0 && activeTool === "select") {
+        isSelectButtonPressedRef.current = true;
       }
 
       if (activeTool === "fog") {
@@ -588,8 +770,9 @@ export function useBattlemapInteractions({
                 layer: "map",
               },
             ]);
-            // Optional: Auto-select or enter edit mode immediately?
-            // For now just place it.
+            // Auto Select
+            useBattlemapStore.getState().setActiveTool("select");
+            useBattlemapStore.getState().setSelectedDrawingIds([id]);
           });
         } else if (drawTool === "polygon") {
           if (!isDrawing) {
@@ -603,19 +786,32 @@ export function useBattlemapInteractions({
               const dist = Math.hypot(x - startX, y - startY);
               if (dist < 20 && currentPath.length >= 6) {
                 // Finish
+                const { drawingProps } = useBattlemapStore.getState();
+                const {
+                  strokeColor,
+                  strokeWidth,
+                  fillColor,
+                  fillAlpha,
+                  opacity,
+                  blur,
+                } = drawingProps;
+                const newId = uuidv7();
+
                 doc.transact(() => {
                   drawingsArray.push([
                     {
-                      id: uuidv7(),
+                      id: newId,
                       type: "polygon",
                       points: [...currentPath],
                       x: 0,
                       y: 0,
-                      strokeColor: "#ff0000",
-                      strokeWidth: 2,
-                      fillColor: "#ffffff",
-                      fillAlpha: 0.1,
+                      strokeColor: strokeColor || "#ff0000",
+                      strokeWidth: strokeWidth || 2,
+                      fillColor: fillColor || "#000000",
+                      fillAlpha: fillAlpha ?? 0.1,
                       layer: settings.activeLayerId || "map",
+                      opacity: opacity ?? 1,
+                      blur: blur ?? 0,
                     },
                   ]);
                 });
@@ -623,6 +819,9 @@ export function useBattlemapInteractions({
                 clearCurrentPath();
                 if (previewGraphicsRef.current)
                   previewGraphicsRef.current.clear();
+
+                useBattlemapStore.getState().setActiveTool("select");
+                useBattlemapStore.getState().setSelectedDrawingIds([newId]);
                 return;
               }
             }
@@ -640,12 +839,8 @@ export function useBattlemapInteractions({
         }
       } else if (activeTool === "select") {
         // Selection Logic
-        // Selection Logic
         let hitId: string | null = null;
         let hitHandle: string | null = null;
-
-        // Check handle hits first if something is selected
-        const { selectedDrawingIds } = useBattlemapStore.getState();
 
         // Only allow resize if EXACTLY ONE item is selected
         if (selectedDrawingIds.length === 1) {
@@ -666,7 +861,7 @@ export function useBattlemapInteractions({
             if (selectedItem.type === "text") {
               const text = selectedItem.content || "";
               const fs = selectedItem.fontSize || 24;
-              const approxWidth = text.length * fs * 0.6;
+              const approxWidth = selectedItem.width || text.length * fs * 0.6;
               const approxHeight = fs * 1.2;
               bounds = {
                 x: selectedItem.x,
@@ -731,7 +926,7 @@ export function useBattlemapInteractions({
             if (d.type === "text") {
               const text = d.content || "";
               const fs = d.fontSize || 24;
-              const approxW = text.length * fs * 0.6;
+              const approxW = d.width || text.length * fs * 0.6;
               const approxH = fs * 1.2;
               if (
                 x >= d.x &&
@@ -767,14 +962,16 @@ export function useBattlemapInteractions({
                 maxX = -Infinity,
                 maxY = -Infinity;
               const pts = d.points;
-              for (let j = 0; j < pts.length; j += 2) {
-                minX = Math.min(minX, pts[j]);
-                maxX = Math.max(maxX, pts[j]);
-                minY = Math.min(minY, pts[j + 1]);
-                maxY = Math.max(maxY, pts[j + 1]);
-              }
-              if (x >= minX && x <= maxX && y >= minY && y <= maxY) {
-                isHit = true;
+              if (pts) {
+                for (let j = 0; j < pts.length; j += 2) {
+                  minX = Math.min(minX, pts[j]);
+                  maxX = Math.max(maxX, pts[j]);
+                  minY = Math.min(minY, pts[j + 1]);
+                  maxY = Math.max(maxY, pts[j + 1]);
+                }
+                if (x >= minX && x <= maxX && y >= minY && y <= maxY) {
+                  isHit = true;
+                }
               }
             }
 
@@ -784,13 +981,11 @@ export function useBattlemapInteractions({
             }
           }
 
-          const { setSelectedDrawingIds } = useBattlemapStore.getState();
           const isShift = e.shiftKey;
           const isAlreadySelected = hitId && selectedDrawingIds.includes(hitId);
 
           if (hitId) {
             if (isShift) {
-              // Toggle selection
               if (isAlreadySelected) {
                 setSelectedDrawingIds(
                   selectedDrawingIds.filter((id) => id !== hitId)
@@ -798,133 +993,29 @@ export function useBattlemapInteractions({
               } else {
                 setSelectedDrawingIds([...selectedDrawingIds, hitId]);
               }
-              // Don't start dragging immediately if untoggling?
-              // Actually, if we just toggled, we probably don't want to drag immediately unless we hold?
-              // Let's allow dragging if we just selected it or if it remained selected.
-              // If we unselected it, we shouldn't drag it.
-              if (!isAlreadySelected) {
-                // We just added it
-                useBattlemapStore.getState().setIsDraggingDrawing(true);
-                dragStartPosRef.current = { x, y };
-              }
-            } else {
-              // No Shift
-              if (isAlreadySelected) {
-                // Keep other selections to allow trying to drag the group
-                // We don't clear others yet. Any click on a selection should potentially be a drag start for the whole group.
-                // IF we click and release without dragging, we might want to clear others?
-                // Standard behavior:
-                // - MouseDown on selected: Start drag, keep selection.
-                // - MouseUp on same selected (didn't move): Select ONLY this one (deselect others).
-                // For now, let's keep it simple: MouseDown on selected keeps group.
-                useBattlemapStore.getState().setIsDraggingDrawing(true);
-                dragStartPosRef.current = { x, y };
-              } else {
-                // Clicked a new unselected item -> Select ONLY this one
-                setSelectedDrawingIds([hitId]);
-                useBattlemapStore.getState().setIsDraggingDrawing(true);
-                dragStartPosRef.current = { x, y };
-              }
+            } else if (!isAlreadySelected) {
+              // Replace selection
+              setSelectedDrawingIds([hitId]);
             }
+            // If already selected and not shift, do nothing (wait for drag)
+
+            useBattlemapStore.getState().setIsDraggingDrawing(true);
+            dragStartPosRef.current = { x, y };
           } else {
-            // Clicked empty space
+            // Clicked on empty space
             if (!isShift) {
               setSelectedDrawingIds([]);
             }
-
-            // START MARQUEE SELECTION
-            // If dragging starts here, it's a marquee
-            useBattlemapStore.getState().setIsDraggingDrawing(true); // Re-use drag flag
+            // Start Marquee
             marqueeStartRef.current = { x, y };
           }
+
+          // Note: Right-click context menu is handled before this point due to early return
         }
+        return;
       } else if (activeTool === "text") {
         // Legacy text tool - removed functionality or mapped to drawTool 'text'
         // keeping mostly empty or redirecting logic if needed, but tool is removed from toolbar
-      }
-
-      // RIGHT CLICK -> Context Menu
-      if (e.button === 2) {
-        e.preventDefault();
-        e.stopPropagation();
-
-        // Hit Test for Drawings
-        let hitId: string | null = null;
-        const items = drawingsArray.toArray();
-        for (let i = items.length - 1; i >= 0; i--) {
-          const d = items[i];
-          if (d.layer !== (settings.activeLayerId || "map")) continue;
-
-          let isHit = false;
-          if (d.type === "rect") {
-            if (
-              x >= d.x &&
-              x <= d.x + d.width &&
-              y >= d.y &&
-              y <= d.y + d.height
-            ) {
-              isHit = true;
-            }
-          } else if (d.type === "ellipse") {
-            const rx = d.width / 2;
-            const ry = d.height / 2;
-            const cx = d.x + rx;
-            const cy = d.y + ry;
-            if (
-              Math.pow(x - cx, 2) / Math.pow(rx, 2) +
-                Math.pow(y - cy, 2) / Math.pow(ry, 2) <=
-              1
-            ) {
-              isHit = true;
-            }
-          } else if (d.type === "brush" || d.type === "polygon") {
-            // Simplified bounding box hit for paths
-            let minX = Infinity,
-              minY = Infinity,
-              maxX = -Infinity,
-              maxY = -Infinity;
-            const pts = d.points;
-            for (let j = 0; j < pts.length; j += 2) {
-              minX = Math.min(minX, pts[j]);
-              maxX = Math.max(maxX, pts[j]);
-              minY = Math.min(minY, pts[j + 1]);
-              maxY = Math.max(maxY, pts[j + 1]);
-            }
-            if (x >= minX && x <= maxX && y >= minY && y <= maxY) {
-              isHit = true;
-            }
-          }
-
-          if (isHit) {
-            hitId = d.id;
-            break; // Found top-most
-          }
-        }
-
-        const actions: ContextMenuAction[] = [];
-        if (hitId) {
-          actions.push({
-            id: "delete",
-            label: "Delete",
-            onClick: () => {
-              const items = drawingsArray.toArray();
-              const idx = items.findIndex((d) => d.id === hitId);
-              if (idx !== -1) drawingsArray.delete(idx, 1);
-            },
-            danger: true,
-          });
-        } else {
-          actions.push({
-            id: "reset-view",
-            label: "Reset View",
-            onClick: () => viewport?.setZoom(1),
-          });
-        }
-
-        if (actions.length > 0) {
-          onOpenContextMenu(e.clientX, e.clientY, actions);
-        }
-        return;
       }
 
       // Update preview immediately on down
@@ -952,16 +1043,33 @@ export function useBattlemapInteractions({
       clearCurrentPath,
       updatePreview,
       onOpenContextMenu,
+      setSelectedDrawingIds, // Added
+      selectedDrawingIds, // Added
     ]
   );
 
   const onPointerUp = useCallback(
     (e: PointerEvent) => {
-      const { isDraggingDrawing, isDrawing } = useBattlemapStore.getState();
+      const {
+        isDraggingDrawing,
+        isDrawing,
+        activeTool,
+        selectedDrawingIds,
+        fogTool,
+        fogMode,
+        drawTool,
+        brushSize,
+        setIsDrawing,
+        currentPath,
+        clearCurrentPath,
+        setSelectedDrawingIds,
+        setIsDraggingDrawing,
+        drawingProps,
+        settings,
+        setActiveTool,
+      } = useBattlemapStore.getState();
 
       if (activeTool === "select") {
-        const { selectedDrawingIds } = useBattlemapStore.getState();
-
         // FINISH MARQUEE SELECTION
         if (marqueeStartRef.current && viewport) {
           const start = marqueeStartRef.current;
@@ -1002,16 +1110,18 @@ export function useBattlemapInteractions({
                   my = Infinity,
                   Mx = -Infinity,
                   My = -Infinity;
-                for (let i = 0; i < d.points.length; i += 2) {
-                  mx = Math.min(mx, d.points[i]);
-                  Mx = Math.max(Mx, d.points[i]);
-                  my = Math.min(my, d.points[i + 1]);
-                  My = Math.max(My, d.points[i + 1]);
+                if (d.points) {
+                  for (let i = 0; i < d.points.length; i += 2) {
+                    mx = Math.min(mx, d.points[i]);
+                    Mx = Math.max(Mx, d.points[i]);
+                    my = Math.min(my, d.points[i + 1]);
+                    My = Math.max(My, d.points[i + 1]);
+                  }
+                  dMinX = mx;
+                  dMaxX = Mx;
+                  dMinY = my;
+                  dMaxY = My;
                 }
-                dMinX = mx;
-                dMaxX = Mx;
-                dMinY = my;
-                dMaxY = My;
               }
 
               // Intersection check (AABB)
@@ -1031,11 +1141,9 @@ export function useBattlemapInteractions({
             if (isShift) {
               // Union
               const set = new Set([...selectedDrawingIds, ...hits]);
-              useBattlemapStore
-                .getState()
-                .setSelectedDrawingIds(Array.from(set));
+              setSelectedDrawingIds(Array.from(set));
             } else {
-              useBattlemapStore.getState().setSelectedDrawingIds(hits);
+              setSelectedDrawingIds(hits);
             }
           }
 
@@ -1053,7 +1161,7 @@ export function useBattlemapInteractions({
           isSelectButtonPressedRef.current = false;
         }
 
-        useBattlemapStore.getState().setIsDraggingDrawing(false);
+        setIsDraggingDrawing(false);
         dragStartPosRef.current = null;
         resizeHandleRef.current = null;
         initialResizeStateRef.current = null;
@@ -1120,8 +1228,7 @@ export function useBattlemapInteractions({
       } else if (activeTool === "draw" && isDrawing) {
         if (drawTool === "brush" && currentPath.length >= 4) {
           const newId = uuidv7();
-          const { strokeColor, strokeWidth, opacity, blur } =
-            useBattlemapStore.getState().drawingProps;
+          const { strokeColor, strokeWidth, opacity, blur } = drawingProps;
 
           doc.transact(() => {
             drawingsArray.push([
@@ -1140,8 +1247,8 @@ export function useBattlemapInteractions({
             ]);
           });
           // Auto Switch
-          useBattlemapStore.getState().setActiveTool("select");
-          useBattlemapStore.getState().setSelectedDrawingIds([newId]);
+          setActiveTool("select");
+          setSelectedDrawingIds([newId]);
           setIsDrawing(false);
           clearCurrentPath();
         } else if (drawTool === "rect" || drawTool === "ellipse") {
@@ -1161,7 +1268,7 @@ export function useBattlemapInteractions({
               fillAlpha,
               opacity,
               blur,
-            } = useBattlemapStore.getState().drawingProps;
+            } = drawingProps;
 
             doc.transact(() => {
               drawingsArray.push([
@@ -1183,8 +1290,8 @@ export function useBattlemapInteractions({
               ]);
             });
             // Auto Switch
-            useBattlemapStore.getState().setActiveTool("select");
-            useBattlemapStore.getState().setSelectedDrawingIds([newId]);
+            setActiveTool("select");
+            setSelectedDrawingIds([newId]);
             setIsDrawing(false);
             clearCurrentPath();
           }
@@ -1208,20 +1315,30 @@ export function useBattlemapInteractions({
       }
     },
     [
-      activeTool,
-      clearCurrentPath,
-      currentPath,
       doc,
-      drawTool,
-      setIsDrawing,
-      settings,
       viewport,
       drawingsArray,
-      brushSize,
       fogArray,
-      fogMode,
-      fogTool,
+      wallsArray,
+      roomsArray,
       previewGraphicsRef,
+      updatePreview,
+      isDraggingDrawing,
+      isDrawing,
+      activeTool,
+      selectedDrawingIds,
+      fogTool,
+      fogMode,
+      drawTool,
+      brushSize,
+      setIsDrawing,
+      currentPath,
+      clearCurrentPath,
+      setSelectedDrawingIds,
+      setIsDraggingDrawing,
+      drawingProps,
+      settings,
+      setActiveTool,
     ]
   );
 
@@ -1251,7 +1368,26 @@ export function useBattlemapInteractions({
   const onDoubleClick = useCallback(
     (e: PointerEvent) => {
       if (!viewport) return;
-      const point = viewport.toLocal({ x: e.offsetX, y: e.offsetY });
+      const {
+        activeTool,
+        drawTool,
+        isDrawing,
+        currentPath,
+        setIsDrawing,
+        clearCurrentPath,
+        drawingProps,
+        settings,
+        setActiveTool,
+        setSelectedDrawingIds,
+        setEditingItemId,
+      } = useBattlemapStore.getState();
+
+      const point = viewport.toLocal({
+        x: e.offsetX,
+        y: e.offsetY,
+        clientX: e.clientX,
+        clientY: e.clientY,
+      } as any);
 
       if (activeTool === "draw" && drawTool === "polygon" && isDrawing) {
         // Finish Polygon
@@ -1263,7 +1399,7 @@ export function useBattlemapInteractions({
             fillAlpha,
             opacity,
             blur,
-          } = useBattlemapStore.getState().drawingProps;
+          } = drawingProps;
 
           const newId = uuidv7();
           doc.transact(() => {
@@ -1285,8 +1421,8 @@ export function useBattlemapInteractions({
             ]);
           });
           // Auto Switch
-          useBattlemapStore.getState().setActiveTool("select");
-          useBattlemapStore.getState().setSelectedDrawingIds([newId]);
+          setActiveTool("select");
+          setSelectedDrawingIds([newId]);
           setIsDrawing(false);
           clearCurrentPath();
           if (previewGraphicsRef.current) previewGraphicsRef.current.clear();
@@ -1311,22 +1447,26 @@ export function useBattlemapInteractions({
         });
 
         if (hitText) {
-          useBattlemapStore.getState().setEditingItemId(hitText.id);
+          setEditingItemId(hitText.id);
         }
       }
     },
     [
       viewport,
+      doc,
+      drawingsArray,
+      previewGraphicsRef,
       activeTool,
       drawTool,
       isDrawing,
       currentPath,
-      doc,
-      drawingsArray,
       setIsDrawing,
       clearCurrentPath,
-      previewGraphicsRef,
-      settings.activeLayerId,
+      drawingProps,
+      settings,
+      setActiveTool,
+      setSelectedDrawingIds,
+      setEditingItemId,
     ]
   );
 
@@ -1383,6 +1523,19 @@ export function useBattlemapInteractions({
     (e: PointerEvent) => {
       if (!viewport) return;
 
+      const {
+        isDraggingDrawing,
+        selectedDrawingIds,
+        activeTool,
+        fogTool,
+        drawTool,
+        isDrawing,
+        currentPath,
+        appendToCurrentPath,
+        setCurrentPath,
+        settings,
+      } = useBattlemapStore.getState();
+
       // Handle middle button drag manually
       if (isMiddlePressedRef.current && middleDragStartRef.current) {
         const dx = e.clientX - middleDragStartRef.current.x;
@@ -1399,7 +1552,12 @@ export function useBattlemapInteractions({
         return; // Don't process other interactions during middle drag
       }
 
-      const point = viewport.toLocal({ x: e.offsetX, y: e.offsetY });
+      const point = viewport.toLocal({
+        x: e.offsetX,
+        y: e.offsetY,
+        clientX: e.clientX,
+        clientY: e.clientY,
+      } as any);
       let { x, y } = point;
 
       // Snap logic (Magnetic Snap)
@@ -1416,8 +1574,6 @@ export function useBattlemapInteractions({
       }
 
       // Update Preview (Always, for hover cursors etc)
-      const { isDraggingDrawing, selectedDrawingIds } =
-        useBattlemapStore.getState();
       if (!isDraggingDrawing) {
         updatePreview(x, y);
       } else if (
@@ -1620,21 +1776,7 @@ export function useBattlemapInteractions({
         }
       }
     },
-    [
-      viewport,
-      settings,
-      activeTool,
-      fogTool,
-      drawTool,
-      previewGraphicsRef,
-      updatePreview,
-      isDrawing,
-      currentPath,
-      appendToCurrentPath,
-      setCurrentPath,
-      doc,
-      drawingsArray,
-    ]
+    [viewport, previewGraphicsRef, updatePreview, doc, drawingsArray]
   );
 
   // Attach to Canvas
@@ -1666,16 +1808,5 @@ export function useBattlemapInteractions({
       window.removeEventListener("mouseup", onMouseUp);
       window.removeEventListener("pointerup", onPointerUp);
     };
-  }, [
-    app,
-    viewport,
-    activeTool,
-    onPointerDown,
-    onPointerMove,
-    onPointerUp,
-    onPointerLeave,
-    onMouseDown,
-    onMouseUp,
-    onDoubleClick,
-  ]);
+  }, [app, viewport]);
 }

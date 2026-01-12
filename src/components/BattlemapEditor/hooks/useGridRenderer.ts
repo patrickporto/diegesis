@@ -1,22 +1,21 @@
 import { Application, Container, Graphics } from "pixi.js";
 import { useEffect } from "react";
 
+import { useBattlemapStore } from "../../../stores/useBattlemapStore";
 import { GridRenderer } from "../GridRenderer";
-import { BattlemapSettings } from "../types";
 
 interface UseGridRendererProps {
-  settings: BattlemapSettings;
   layerContainersRef: React.MutableRefObject<Map<string, Container>>;
   app: Application | null;
   isReady: boolean;
 }
 
 export function useGridRenderer({
-  settings,
   layerContainersRef,
   app,
   isReady,
 }: UseGridRendererProps) {
+  const settings = useBattlemapStore((s) => s.settings);
   useEffect(() => {
     // Grid is a special case in the current implementation, sometimes handled by GridRenderer helper
     // or typically drawn into the 'grid' layer container.

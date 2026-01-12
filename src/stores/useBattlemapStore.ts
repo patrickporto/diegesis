@@ -255,7 +255,10 @@ export const useBrushSize = () => useBattlemapStore((s) => s.brushSize);
 export const useIsDrawing = () => useBattlemapStore((s) => s.isDrawing);
 export const useFogShapes = () => useBattlemapStore((s) => s.fogShapes);
 export const useTokens = () => useBattlemapStore((s) => s.tokens);
+export const useDrawings = () => useBattlemapStore((s) => s.drawings);
+export const useTexts = () => useBattlemapStore((s) => s.texts);
 export const useWalls = () => useBattlemapStore((s) => s.walls);
+export const useRooms = () => useBattlemapStore((s) => s.rooms);
 export const useSettings = () => useBattlemapStore((s) => s.settings);
 export const useSelectedWallId = () =>
   useBattlemapStore((s) => s.selectedWallId);

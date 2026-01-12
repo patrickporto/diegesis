@@ -11,7 +11,6 @@ const WALL_WIDTH = 4;
 const DOOR_WIDTH = 6;
 
 interface UseWallRendererProps {
-  walls: Wall[];
   layerContainersRef: React.MutableRefObject<Map<string, Container>>;
   isReady: boolean;
   layersCheck: number; // Version/timestamp to force re-check
@@ -131,11 +130,11 @@ const drawSegment = (
 };
 
 export function useWallRenderer({
-  walls,
   layerContainersRef,
   isReady,
   layersCheck,
 }: UseWallRendererProps) {
+  const walls = useBattlemapStore((s) => s.walls);
   const selectedSegmentIds = useBattlemapStore((s) => s.selectedSegmentIds);
 
   const wallGraphicsRef = useRef<Graphics | null>(null);

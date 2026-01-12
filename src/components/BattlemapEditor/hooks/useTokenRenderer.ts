@@ -12,15 +12,13 @@ import * as Y from "yjs";
 
 import { useBattlemapStore } from "../../../stores/useBattlemapStore";
 import { GridRenderer } from "../GridRenderer";
-import { BattlemapSettings, ContextMenuAction, Token } from "../types";
+import { ContextMenuAction, Token } from "../types";
 
 interface DraggableContainer extends Container {
   isDragging?: boolean;
 }
 
 interface UseTokenRendererProps {
-  tokens: Token[];
-  settings: BattlemapSettings;
   layerContainersRef: React.MutableRefObject<Map<string, Container>>;
   doc: Y.Doc;
   tokensArray: Y.Array<Token>;
@@ -34,8 +32,6 @@ interface UseTokenRendererProps {
 }
 
 export function useTokenRenderer({
-  tokens,
-  settings,
   layerContainersRef,
   doc,
   tokensArray,
@@ -44,6 +40,8 @@ export function useTokenRenderer({
   getFileBlob,
   setContextMenu,
 }: UseTokenRendererProps) {
+  const tokens = useBattlemapStore((s) => s.tokens);
+  const settings = useBattlemapStore((s) => s.settings);
   const tokenContainersRef = useRef(new Map<string, DraggableContainer>());
   const activeTool = useBattlemapStore((s) => s.activeTool);
   const selectedTokenIds = useBattlemapStore((s) => s.selectedTokenIds);
@@ -272,7 +270,7 @@ export function useTokenRenderer({
       }
 
       // Sync Position (if not dragging)
-      if (!container.isDragging) {
+      if (container && !container.destroyed && !container.isDragging) {
         container.x = token.x - size / 2;
         container.y = token.y - size / 2;
       }

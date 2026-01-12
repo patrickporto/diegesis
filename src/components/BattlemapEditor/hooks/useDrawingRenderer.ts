@@ -2,27 +2,27 @@ import { BlurFilter, Container, Graphics, Text, TextStyle } from "pixi.js";
 import { useEffect, useRef } from "react";
 
 import { useBattlemapStore } from "../../../stores/useBattlemapStore";
-import { DrawingPath } from "../types";
 
 interface UseDrawingRendererProps {
-  drawings: DrawingPath[];
   layerContainersRef: React.MutableRefObject<Map<string, Container>>;
   isReady: boolean;
 }
 
 export function useDrawingRenderer({
-  drawings,
   layerContainersRef,
   isReady,
 }: UseDrawingRendererProps) {
+  const drawings = useBattlemapStore((s) => s.drawings);
   const selectedDrawingIds = useBattlemapStore((s) => s.selectedDrawingIds);
   const drawingGraphicsRef = useRef<Map<string, Graphics>>(new Map());
+  const selectionGraphicsRef = useRef<Map<string, Graphics>>(new Map());
 
   useEffect(() => {
     if (!isReady) return;
 
     const currentIds = new Set(drawings.map((d) => d.id));
     const graphicsMap = drawingGraphicsRef.current;
+    const selectionMap = selectionGraphicsRef.current;
 
     // Cleanup
     for (const [id, g] of graphicsMap) {
@@ -31,9 +31,24 @@ export function useDrawingRenderer({
         graphicsMap.delete(id);
       }
     }
+    for (const [id, g] of selectionMap) {
+      if (!currentIds.has(id)) {
+        g.destroy({ children: true });
+        selectionMap.delete(id);
+      }
+    }
+
+    // Clean up selection graphics for drawings that are no longer selected
+    for (const [id, g] of selectionMap) {
+      if (!selectedDrawingIds.includes(id)) {
+        g.destroy({ children: true });
+        selectionMap.delete(id);
+      }
+    }
 
     drawings.forEach((drawing) => {
       let g = graphicsMap.get(drawing.id);
+      let selectionG = selectionMap.get(drawing.id);
       const layerId = drawing.layer || "map";
       const container = layerContainersRef.current.get(layerId);
 
@@ -48,11 +63,28 @@ export function useDrawingRenderer({
         container.addChild(g);
       }
 
+      const isSelected = selectedDrawingIds.includes(drawing.id);
+
+      // Only create/keep selection graphics if drawing is selected
+      if (isSelected) {
+        if (!selectionG) {
+          selectionG = new Graphics();
+          selectionG.label = `selection-${drawing.id}`;
+          selectionMap.set(drawing.id, selectionG);
+          container.addChild(selectionG);
+        } else if (selectionG.parent !== container) {
+          container.addChild(selectionG);
+        }
+      }
+
       // Always clear and redraw to support updates (position, modifications, selection)
       g.clear();
       g.removeChildren();
+      if (selectionG) {
+        selectionG.clear();
+      }
 
-      // Apply shared properties
+      // Apply shared properties to content graphics only
       g.alpha = drawing.opacity ?? 1;
       if (drawing.blur && drawing.blur > 0) {
         const blurFilter = new BlurFilter();
@@ -62,7 +94,10 @@ export function useDrawingRenderer({
         g.filters = null;
       }
 
-      const isSelected = selectedDrawingIds.includes(drawing.id);
+      // Selection graphics never has blur filters
+      if (selectionG) {
+        selectionG.filters = null;
+      }
 
       if (drawing.type === "brush" && drawing.points.length >= 4) {
         g.moveTo(drawing.points[0], drawing.points[1]);
@@ -191,9 +226,9 @@ export function useDrawingRenderer({
           }
         }
 
-        // Draw selection box
-        g.rect(bounds.x, bounds.y, bounds.width, bounds.height);
-        g.stroke({
+        // Draw selection box on separate Graphics object (without blur)
+        selectionG!.rect(bounds.x, bounds.y, bounds.width, bounds.height);
+        selectionG!.stroke({
           color: 0x00ffff, // Cyan highlight
           width: 1,
           alpha: 0.8,
@@ -205,19 +240,19 @@ export function useDrawingRenderer({
         // User probably expects handles always, but maybe too cluttered if many selected.
         // Let's show handles always for now.
         const handleSize = 6;
-        g.rect(
+        selectionG!.rect(
           bounds.x - handleSize / 2,
           bounds.y - handleSize / 2,
           handleSize,
           handleSize
         );
-        g.rect(
+        selectionG!.rect(
           bounds.x + bounds.width - handleSize / 2,
           bounds.y + bounds.height - handleSize / 2,
           handleSize,
           handleSize
         );
-        g.fill({ color: 0x00ffff });
+        selectionG!.fill({ color: 0x00ffff });
       }
     });
 

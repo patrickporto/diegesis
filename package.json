@@ -25,6 +25,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:ci": "vitest run --coverage",
+    "test:ui": "vitest --ui --open",
+    "test:fast": "vitest run --pool=threads --no-isolate",
     "serve": "vite preview",
     "prepare": "husky install && shx rm -rf .git/hooks && shx ln -s ../.husky .git/hooks",
     "lint": "eslint . --ext .ts,.tsx",
@@ -53,6 +55,7 @@
     "minisearch": "^7.2.0",
     "pixi-viewport": "^6.0.3",
     "pixi.js": "^8.15.0",
+    "ramda": "^0.32.0",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
     "react-easy-crop": "^5.5.6",
@@ -65,6 +68,7 @@
     "uuidv7": "^1.1.0",
     "y-indexeddb": "^9.0.12",
     "yjs": "^13.6.29",
+    "zod": "^4.3.5",
     "zustand": "^5.0.9"
   },
   "devDependencies": {
